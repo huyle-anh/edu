@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, Chip, Drawer, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Drawer, IconButton, Paper, Stack, Typography } from "@mui/material";
 import ArrowBackIosNewOutlinedIcon from "@mui/icons-material/ArrowBackIosNewOutlined";
 import ArrowForwardIosOutlinedIcon from "@mui/icons-material/ArrowForwardIosOutlined";
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
@@ -9,10 +9,11 @@ import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { LoadingState } from "@/components/shared/feedback/LoadingState";
+import { MasterSelectField, type MasterSelectValue } from "@/components/shared/forms/MasterSelectField";
 import { extractApiErrorMessage, unwrapApiResponse } from "@/lib/api-client";
 import { AttendanceRecordList, type AttendanceRow } from "@/modules/attendance/components/AttendanceRecordList";
+import { AttendanceClassSelectDialog, type AttendanceClassOption } from "@/modules/attendance/components/AttendanceClassSelectDialog";
 
-type ClassOption = { classId: string; classCode: string; className: string; classStatus: "ACTIVE" | "COMPLETED"; subjectName: string; teacherName: string; canCreate: boolean };
 type SessionSummary = { id: string; sessionAt: string; updatedAt: string; studentCount: number };
 type AttendanceSession = { id: string; sessionAt: string; updatedAt: string; class: { id: string; code: string; name: string; subjectName: string; teacherName: string }; records: AttendanceRow[]; audits: { id: string; action: string; performedAt: string; actor: { fullName: string } }[] };
 type PageResult<T> = { items: T[]; pagination: { page: number; pageSize: number; totalPages: number } };
@@ -37,8 +38,9 @@ function currentVietnamMonth() {
 }
 
 export function AttendanceCalendarPage() {
-  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [classes, setClasses] = useState<AttendanceClassOption[]>([]);
   const [classId, setClassId] = useState("");
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [shownMonth, setShownMonth] = useState(currentVietnamMonth);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
@@ -56,11 +58,11 @@ export function AttendanceCalendarPage() {
     try {
       const response = await fetch("/api/attendance?page=1&pageSize=100");
       if (!response.ok) throw new Error(await extractApiErrorMessage(response, "Không tải được danh sách lớp"));
-      const first = await unwrapApiResponse<PageResult<ClassOption>>(response);
+      const first = await unwrapApiResponse<PageResult<AttendanceClassOption>>(response);
       const rest = await Promise.all(Array.from({ length: Math.max(0, first.pagination.totalPages - 1) }, async (_, index) => {
         const next = await fetch("/api/attendance?page=" + (index + 2) + "&pageSize=100");
         if (!next.ok) throw new Error(await extractApiErrorMessage(next, "Không tải được danh sách lớp"));
-        return unwrapApiResponse<PageResult<ClassOption>>(next);
+        return unwrapApiResponse<PageResult<AttendanceClassOption>>(next);
       }));
       const items = [...first.items, ...rest.flatMap((page) => page.items)];
       setClasses(items);
@@ -70,6 +72,11 @@ export function AttendanceCalendarPage() {
     finally { setLoadingClasses(false); }
   }, []);
   useEffect(() => { void loadClasses(); }, [loadClasses]);
+
+  const selectedClass = classes.find((item) => item.classId === classId);
+  const selectedClassValue: MasterSelectValue | null = selectedClass
+    ? { id: selectedClass.classId, code: selectedClass.classCode, name: selectedClass.className }
+    : null;
 
   const loadMonthSessions = useCallback(async () => {
     const requestId = ++monthRequestId.current;
@@ -146,12 +153,27 @@ export function AttendanceCalendarPage() {
     <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, borderColor: "divider", bgcolor: "background.paper" }}>
     <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
       <Button component={Link} href="/teacher/attendance" variant="outlined" startIcon={<ArrowBackOutlinedIcon />} sx={{ minHeight: 44, alignSelf: { xs: "flex-start", sm: "auto" } }}>Quay lại điểm danh</Button>
-      <FormControl fullWidth sx={{ maxWidth: { sm: 440 } }} disabled={loadingClasses}>
-        <InputLabel id="attendance-calendar-class-label">Lớp</InputLabel>
-        <Select id="attendance-calendar-class" name="classId" labelId="attendance-calendar-class-label" label="Lớp" value={classId} onChange={(event) => { setClassId(event.target.value); setSelectedDate(""); setSession(null); }}>{classes.map((item) => <MenuItem key={item.classId} value={item.classId}>{item.classCode} – {item.className} · {item.subjectName}</MenuItem>)}</Select>
-      </FormControl>
+      <MasterSelectField
+        label="Lớp"
+        value={selectedClassValue}
+        onOpen={() => setClassDialogOpen(true)}
+        disabled={loadingClasses || classes.length === 0}
+        codeLabel="Mã lớp"
+        nameLabel="Tên lớp"
+        sx={{ flex: 1, minWidth: 0, maxWidth: { sm: 440 } }}
+      />
     </Stack>
     </Paper>
+    <AttendanceClassSelectDialog
+      open={classDialogOpen}
+      options={classes}
+      onClose={() => setClassDialogOpen(false)}
+      onSelect={(item) => {
+        setClassId(item.classId);
+        setSelectedDate("");
+        setSession(null);
+      }}
+    />
     {error && <Alert severity="error">{error}</Alert>}
     {message && !selectedDate && <Alert severity="success" onClose={() => setMessage("")}>{message}</Alert>}
     <Paper sx={{ p: { xs: 1, sm: 2, md: 3 } }}>

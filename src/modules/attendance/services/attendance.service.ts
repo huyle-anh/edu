@@ -203,7 +203,7 @@ export async function getNewAttendanceRoster(classId: string, teacherId: string 
       subjectName: assignment.subject.name,
       teacherName: assignment.teacher?.fullName ?? "",
     },
-    records: eligible.map((enrollment) => ({ enrollmentId: enrollment.id, student: enrollment.student, status: "ABSENT" as const, note: "" })),
+    records: eligible.map((enrollment) => ({ enrollmentId: enrollment.id, student: enrollment.student, status: "PRESENT" as const, note: "" })),
   };
 }
 

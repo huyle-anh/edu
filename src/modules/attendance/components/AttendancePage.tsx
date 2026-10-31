@@ -1,22 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Paper, Select, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { LoadingState } from "@/components/shared/feedback/LoadingState";
+import { MasterSelectField, type MasterSelectValue } from "@/components/shared/forms/MasterSelectField";
 import { extractApiErrorMessage, unwrapApiResponse } from "@/lib/api-client";
 import { AttendanceRecordList, type AttendanceRow } from "@/modules/attendance/components/AttendanceRecordList";
+import { AttendanceClassSelectDialog, type AttendanceClassOption } from "@/modules/attendance/components/AttendanceClassSelectDialog";
 
-type ClassOption = { classId: string; classCode: string; className: string; classStatus: "ACTIVE" | "COMPLETED"; subjectName: string; teacherName: string; canCreate: boolean };
 type AttendanceSession = { id: string | null; class: { id: string; code: string; name: string; subjectName: string; teacherName: string }; records: AttendanceRow[] };
 type PageResult<T> = { items: T[]; pagination: { page: number; pageSize: number; totalPages: number } };
 
 export function AttendancePage() {
-  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [classes, setClasses] = useState<AttendanceClassOption[]>([]);
   const [classId, setClassId] = useState("");
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [session, setSession] = useState<AttendanceSession | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
@@ -29,11 +31,11 @@ export function AttendancePage() {
     try {
       const response = await fetch("/api/attendance?page=1&pageSize=100");
       if (!response.ok) throw new Error(await extractApiErrorMessage(response, "Không tải được danh sách lớp"));
-      const first = await unwrapApiResponse<PageResult<ClassOption>>(response);
+      const first = await unwrapApiResponse<PageResult<AttendanceClassOption>>(response);
       const others = await Promise.all(Array.from({ length: Math.max(0, first.pagination.totalPages - 1) }, async (_, index) => {
         const result = await fetch(`/api/attendance?page=${index + 2}&pageSize=100`);
         if (!result.ok) throw new Error(await extractApiErrorMessage(result, "Không tải được danh sách lớp"));
-        return unwrapApiResponse<PageResult<ClassOption>>(result);
+        return unwrapApiResponse<PageResult<AttendanceClassOption>>(result);
       }));
       setClasses([...first.items, ...others.flatMap((item) => item.items)]);
     } catch (reason) {
@@ -44,6 +46,9 @@ export function AttendancePage() {
   useEffect(() => { void loadClasses(); }, [loadClasses]);
 
   const selectedClass = classes.find((item) => item.classId === classId);
+  const selectedClassValue: MasterSelectValue | null = selectedClass
+    ? { id: selectedClass.classId, code: selectedClass.classCode, name: selectedClass.className }
+    : null;
   const beginNewSession = async () => {
     if (!classId) return;
     setLoadingSession(true); setSession(null); setError(""); setMessage("");
@@ -82,12 +87,15 @@ export function AttendancePage() {
     {message && <Alert severity="success" onClose={() => setMessage("")}>{message}</Alert>}
     <Paper sx={{ p: { xs: 2, md: 3 } }}>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
-        <FormControl fullWidth disabled={loadingClasses}>
-          <InputLabel id="attendance-class-label">Lớp</InputLabel>
-          <Select id="attendance-class" name="classId" labelId="attendance-class-label" label="Lớp" value={classId} onChange={(event) => { setClassId(event.target.value); setSession(null); setError(""); setMessage(""); }}>
-            {classes.map((item) => <MenuItem key={item.classId} value={item.classId}>{item.classCode} – {item.className} · {item.subjectName}</MenuItem>)}
-          </Select>
-        </FormControl>
+        <MasterSelectField
+          label="Lớp"
+          value={selectedClassValue}
+          onOpen={() => setClassDialogOpen(true)}
+          disabled={loadingClasses || classes.length === 0}
+          codeLabel="Mã lớp"
+          nameLabel="Tên lớp"
+          sx={{ flex: 1, minWidth: 0 }}
+        />
         <Button variant="contained" startIcon={<FactCheckOutlinedIcon />} onClick={() => void beginNewSession()} disabled={!selectedClass?.canCreate || loadingClasses || loadingSession} sx={{ minWidth: { md: 210 }, minHeight: 48, flexShrink: 0 }}>
           {loadingSession ? "Đang tải..." : "Bắt đầu điểm danh"}
         </Button>
@@ -95,6 +103,17 @@ export function AttendancePage() {
       {selectedClass && !selectedClass.canCreate && <Alert severity="info" sx={{ mt: 2 }}>Lớp này hiện chỉ xem được lịch sử điểm danh.</Alert>}
       {!loadingClasses && !classes.length && <Alert severity="info" sx={{ mt: 2 }}>Tài khoản chưa được phân công lớp/môn nào để điểm danh.</Alert>}
     </Paper>
+    <AttendanceClassSelectDialog
+      open={classDialogOpen}
+      options={classes}
+      onClose={() => setClassDialogOpen(false)}
+      onSelect={(item) => {
+        setClassId(item.classId);
+        setSession(null);
+        setError("");
+        setMessage("");
+      }}
+    />
     {loadingSession && <LoadingState label="Đang tải danh sách học viên..." />}
     {session && !loadingSession && <Paper sx={{ overflow: "hidden" }}>
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={1.5} sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
