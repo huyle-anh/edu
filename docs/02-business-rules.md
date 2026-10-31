@@ -576,16 +576,16 @@ nộp tiền mặt, nhân viên phải thu từ màn hình thanh toán với ph�
 
 Khi phát hành theo lớp và kỳ, hệ thống lấy toàn bộ khoản học phí tháng còn nợ
 trong lớp/kỳ, bao gồm khoản chưa phát hành và khoản đang thuộc batch
-`BANK_TRANSFER` `PENDING`. Batch đang chờ không bị hủy. Khoản đã thuộc batch
-được giữ nguyên nếu phân bổ đã bằng số dư còn nợ; nếu phân bổ thấp hơn số dư,
-hệ thống tăng phân bổ đến số dư hiện tại. Khoản chưa phát hành được thêm vào một
-batch chuyển khoản đang chờ của học viên nếu có, ưu tiên batch đã chứa khoản
-thuộc lớp/kỳ đó. Nếu cập nhật batch, hệ thống cập nhật tổng tiền, tài khoản nhận
-tiền và snapshot thông báo trong cùng transaction để QR/PDF mới phản ánh số tiền
-và tài khoản hiện hành. Các khoản khác đã có trong batch vẫn được giữ nguyên.
-Nếu học viên chưa có batch chuyển khoản đang chờ phù hợp, hệ thống tạo batch
-mới. Khoản đã thanh toán không được đưa vào batch mới. Mọi batch được cập nhật
-hoặc tạo phải có audit log.
+`BANK_TRANSFER` `PENDING`. Mỗi thông báo theo lớp/kỳ chỉ được chứa khoản thuộc
+đúng kỳ đã chọn. Khoản chưa phát hành chỉ được thêm vào batch chuyển khoản đang
+chờ nếu mọi khoản đã có trong batch đều thuộc cùng kỳ; nếu không có batch phù
+hợp, hệ thống tạo batch mới. Batch ở kỳ khác được giữ nguyên. Khoản mục tiêu đã
+nằm trong batch nhiều kỳ không được phát hành lại; nhân viên phải xử lý batch đó
+trước để tránh thông báo/QR có tổng tiền khác kỳ được chọn. Nếu cập nhật batch
+cùng kỳ, hệ thống cập nhật tổng tiền, tài khoản nhận tiền và snapshot thông báo
+trong cùng transaction để QR/PDF mới phản ánh số tiền và tài khoản hiện hành.
+Khoản đã thanh toán không được đưa vào batch mới. Mọi batch được cập nhật hoặc
+tạo phải có audit log.
 Batch đang được liên kết với dòng sao kê không bị sửa phân bổ hoặc đổi tài khoản;
 khoản mới được phát hành thành batch khác để không làm sai lệch dữ liệu đối soát.
 Nếu khoản mục tiêu đã được phân bổ một phần trong batch có liên kết sao kê,

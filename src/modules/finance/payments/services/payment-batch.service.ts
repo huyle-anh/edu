@@ -1123,6 +1123,16 @@ export async function createClassNoticeBatches(
       for (const batch of pendingBatches) {
         for (const allocation of batch.allocations) {
           if (!targetFeeIdSet.has(allocation.tuitionFeeId)) continue;
+          const containsOtherPeriod = batch.allocations.some((item) => {
+            const allocatedFee = feeById.get(item.tuitionFeeId);
+            return allocatedFee &&
+              (allocatedFee.billingYear !== year || allocatedFee.billingMonth !== month);
+          });
+          if (containsOtherPeriod) {
+            throw new ConflictError(
+              `Khoản học phí kỳ ${data.month} đang nằm trong đợt ${batch.batchNo} cùng với kỳ khác; hãy xử lý đợt đó trước khi phát hành riêng kỳ này`,
+            );
+          }
           const existingAllocation = pendingBatchByFee.get(
             allocation.tuitionFeeId,
           );
@@ -1219,7 +1229,12 @@ export async function createClassNoticeBatches(
         const studentBatches = pendingBatches.filter(
           (batch) => batch.studentId === studentId &&
             batch.paymentMethod === "BANK_TRANSFER" &&
-            batch.statementRowLinks.length === 0,
+            batch.statementRowLinks.length === 0 &&
+            batch.allocations.every((allocation) => {
+              const allocatedFee = feeById.get(allocation.tuitionFeeId);
+              return allocatedFee &&
+                allocatedFee.billingYear === year && allocatedFee.billingMonth === month;
+            }),
         );
         const anchorBatch = studentBatches.find((batch) =>
           batch.allocations.some((allocation) =>

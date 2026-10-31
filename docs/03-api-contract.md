@@ -836,12 +836,15 @@ POST /api/payment-batches/notice/class
 Body gồm `classId`, `month` (`YYYY-MM`), `bankAccountId` và `idempotencyKey`.
 Backend lấy toàn bộ học phí MONTHLY còn nợ của lớp/kỳ đã chọn, gồm khoản chưa
 phát hành và khoản thuộc batch `PENDING`; không đưa khoản đã thanh toán vào
-batch. Batch chuyển khoản đang chờ được giữ nguyên. Khoản chưa phát hành được
-thêm vào batch chuyển khoản đang chờ của học viên nếu có. Phân bổ hiện tại được
-giữ nguyên nếu đã bằng số dư còn nợ; nếu thấp hơn, API tăng phân bổ đến số dư
-còn lại. Khi cập nhật, API cập nhật tổng tiền, tài khoản nhận tiền, snapshot
-notice và audit log trong cùng transaction. Các phân bổ khác của batch được giữ
-nguyên. Nếu không có batch phù hợp, API tạo batch mới. Phản hồi trả danh sách
+batch. Mỗi batch được trả về chỉ chứa học phí thuộc `month` đã chọn. Khoản chưa
+phát hành chỉ được thêm vào batch chuyển khoản đang chờ nếu mọi khoản đã có
+trong batch đều thuộc cùng kỳ; nếu không có batch cùng kỳ, API tạo batch mới.
+Batch khác kỳ được giữ nguyên. Nếu khoản mục tiêu đã nằm trong batch nhiều kỳ,
+API trả `409 CONFLICT` yêu cầu xử lý batch đó trước. Phân bổ hiện tại được giữ
+nguyên nếu đã bằng số dư còn nợ; nếu thấp hơn, API tăng phân bổ đến số dư còn
+lại. Khi cập nhật, API cập nhật tổng tiền, tài khoản nhận tiền, snapshot notice
+và audit log trong cùng transaction. Các phân bổ khác cùng kỳ được giữ nguyên.
+Phản hồi trả danh sách
 batch để xuất PDF gộp qua endpoint PDF hiện có, `updatedBatchCount` và
 `replacedBatchCount` (luôn bằng 0 để tương thích với client cũ). Batch đang được
 liên kết với dòng sao kê không bị sửa phân bổ hoặc đổi tài khoản; khoản mới được

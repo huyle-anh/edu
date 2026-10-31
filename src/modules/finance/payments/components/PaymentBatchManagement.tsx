@@ -1549,7 +1549,7 @@ export function PaymentBatchManagement() {
         }
         message={
           classNoticeMode
-            ? `Hệ thống lấy toàn bộ khoản còn nợ của lớp ${selectedClass?.name ?? "đã chọn"} trong kỳ ${month}. Đợt chuyển khoản đang chờ được giữ nguyên; khoản chưa phát hành sẽ được thêm vào đợt hiện có của học viên nếu phù hợp. Đợt đang gắn với sao kê sẽ không bị thay đổi; nếu khoản cần bổ sung còn thiếu phân bổ trong đợt đó, hãy hoàn tất đối soát trước. Nếu tài khoản nhận tiền khác tài khoản của đợt đã gắn sao kê, hãy chọn đúng tài khoản hoặc hoàn tất đối soát trước. Khi batch được cập nhật, tổng tiền và tài khoản nhận tiền sẽ theo lựa chọn này nên cần gửi PDF/QR mới.`
+          ? `Hệ thống chỉ lấy các khoản còn nợ của lớp ${selectedClass?.name ?? "đã chọn"} trong kỳ ${month}. Thông báo chỉ gồm khoản thuộc kỳ này; khoản chưa phát hành chỉ được thêm vào đợt chờ cùng kỳ, nếu không sẽ tạo đợt riêng. Nếu khoản kỳ này đã nằm chung đợt với kỳ khác, cần xử lý đợt đó trước. Đợt đang gắn với sao kê không bị thay đổi.`
             : `Hệ thống sẽ phát hành ${selectedFeeIds.length} khoản cho ${selectedStudentCount} học viên, tự gom theo từng học viên. Tổng số tiền còn nợ: ${money(selectedFeeTotal)}.`
         }
         content={
