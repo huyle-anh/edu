@@ -169,12 +169,6 @@ export async function generatePaymentBatchNoticesPdf(
           "Chỉ có thể gộp PDF của các đợt chuyển khoản đang chờ",
         );
       }
-      if (new Set(batches.map((batch) => batch.bankAccountId)).size !== 1) {
-        throw new ConflictError(
-          "Các đợt thu phải dùng cùng một tài khoản nhận tiền để gộp PDF",
-        );
-      }
-
       const batchesById = new Map(batches.map((batch) => [batch.id, batch]));
       const prepared = uniqueIds.map((id) => {
         const batch = batchesById.get(id)!;

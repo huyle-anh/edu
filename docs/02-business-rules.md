@@ -599,6 +599,9 @@ Cho phép xuất/in lại nhiều lần khi batch còn `PENDING`; hệ thống h
 email/SMS và chưa lưu lịch sử số lần xuất/in. Notice dùng snapshot tài khoản đã
 gắn với batch; nếu tài khoản không còn active thì không sinh QR mới và PDF phải
 cảnh báo người nộp liên hệ trung tâm trước khi chuyển khoản.
+Có thể gộp PDF của nhiều batch `PENDING` `BANK_TRANSFER` dù khác học viên hoặc
+tài khoản nhận tiền; mỗi thông báo phải giữ QR và snapshot tài khoản riêng của
+batch tương ứng.
 
 ---
 

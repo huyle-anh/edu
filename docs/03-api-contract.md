@@ -848,8 +848,8 @@ Phản hồi trả danh sách
 batch để xuất PDF gộp qua endpoint PDF hiện có, `updatedBatchCount` và
 `replacedBatchCount` (luôn bằng 0 để tương thích với client cũ). Batch đang được
 liên kết với dòng sao kê không bị sửa phân bổ hoặc đổi tài khoản; khoản mới được
-tạo thành batch khác. Nếu các batch trả về không thể gộp PDF do khác tài khoản,
-API từ chối và yêu cầu dùng đúng tài khoản nhận tiền hoặc hoàn tất đối soát trước.
+tạo thành batch khác. Các batch trả về có thể gộp PDF dù dùng tài khoản khác
+nhau vì mỗi thông báo dùng QR và snapshot tài khoản riêng của batch.
 Nếu khoản mục tiêu đã phân bổ một phần trong batch đang liên kết sao kê, API từ
 chối cập nhật và yêu cầu hoàn tất đối soát trước.
 Retry với cùng `idempotencyKey` và cùng nội dung trả lại kết quả ban đầu; dùng lại
@@ -861,9 +861,10 @@ khóa với nội dung khác trả `409 CONFLICT`.
 POST /api/payment-batches/notice/pdf
 ```
 
-Body gồm `batchIds` (1–5000 UUID). Tất cả batch phải đang `PENDING`, dùng phương
-thức `BANK_TRANSFER` và cùng một tài khoản nhận tiền. Response thành công là
-file PDF gộp các thông báo.
+Body gồm `batchIds` (1–5000 UUID). Tất cả batch phải đang `PENDING` và dùng
+phương thức `BANK_TRANSFER`. PDF gộp có thể chứa nhiều học sinh và nhiều tài
+khoản nhận tiền; từng thông báo dùng QR và snapshot tài khoản riêng của batch.
+Response thành công là file PDF gộp các thông báo.
 
 ---
 

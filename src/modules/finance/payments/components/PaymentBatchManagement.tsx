@@ -31,9 +31,9 @@ import {
   TableBody,
   TableCell,
   TableHead,
-  TablePagination,
   TableRow,
   Tabs,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
@@ -70,6 +70,7 @@ import { extractApiErrorMessage, unwrapApiResponse } from "@/lib/api-client";
 import { LoadingState } from "@/components/shared/feedback/LoadingState";
 import { FilterActions } from "@/components/shared/FilterActions";
 import {
+  fetchAllNoticePages,
   fetchNoticeBankAccounts,
   fetchOutstandingFees,
   fetchPendingBatches,
@@ -173,8 +174,6 @@ function groupFeesByPeriod(items: NoticeFee[]) {
 
 export function PaymentBatchManagement() {
   const [view, setView] = useState<View>("UNISSUED");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
   // Kỳ học phí là bộ lọc tùy chọn; để trống sẽ tải các khoản của mọi kỳ.
   const [month, setMonth] = useState("");
   const [search, setSearch] = useState("");
@@ -198,6 +197,7 @@ export function PaymentBatchManagement() {
   const [bankAccounts, setBankAccounts] = useState<NoticeBankAccount[]>([]);
   const [selectedFeeIds, setSelectedFeeIds] = useState<string[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
   const [classNoticeMode, setClassNoticeMode] = useState(false);
   const [bankAccountId, setBankAccountId] = useState("");
@@ -213,29 +213,25 @@ export function PaymentBatchManagement() {
   const [issuedMonth, setIssuedMonth] = useState<string | null>(null);
   const [issuedDialogOpen, setIssuedDialogOpen] = useState(false);
   const [isDownloadingNoticePdf, setIsDownloadingNoticePdf] = useState(false);
+  const [isDownloadingSelectedNotices, setIsDownloadingSelectedNotices] = useState(false);
   const { showSuccess, showError, Snackbar } = useSnackbar();
   const appliedUrlFilters = useRef(false);
   const studentDialog = useDisclosure();
   const classDialog = useDisclosure();
 
   useEffect(() => {
-    setPage(0);
     setSelectedFeeIds([]);
     setSelectedBatchIds([]);
-  }, [appliedClassId, appliedSearch, appliedStudentId, month, pageSize, view]);
-
-  useEffect(() => {
-    setSelectedFeeIds([]);
-    setSelectedBatchIds([]);
-  }, [page]);
+    setSelectedStudentIds([]);
+  }, [appliedClassId, appliedSearch, appliedStudentId, month, view]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     const filters = {
       month,
-      page: page + 1,
-      pageSize,
+      page: 1,
+      pageSize: 100,
       search: appliedSearch,
       studentId: appliedStudentId,
       classId: appliedClassId,
@@ -243,18 +239,9 @@ export function PaymentBatchManagement() {
     try {
       const [feeItems, batchItems, paidBatchItems, accounts] =
         await Promise.all([
-          fetchOutstandingFees({
-            ...filters,
-            page: view === "UNISSUED" ? filters.page : 1,
-          }),
-          fetchPendingBatches({
-            ...filters,
-            page: view === "PENDING" ? filters.page : 1,
-          }),
-          fetchSuccessfulBatches({
-            ...filters,
-            page: view === "SUCCESS" ? filters.page : 1,
-          }),
+          fetchAllNoticePages(fetchOutstandingFees, filters),
+          fetchAllNoticePages(fetchPendingBatches, filters),
+          fetchAllNoticePages(fetchSuccessfulBatches, filters),
           fetchNoticeBankAccounts(),
         ]);
       setFees(feeItems.items);
@@ -263,14 +250,6 @@ export function PaymentBatchManagement() {
       setPendingTotal(batchItems.total);
       setSuccessfulBatches(paidBatchItems.items);
       setSuccessfulTotal(paidBatchItems.total);
-      const activeTotal =
-        view === "UNISSUED"
-          ? feeItems.total
-          : view === "PENDING"
-            ? batchItems.total
-            : paidBatchItems.total;
-      const lastPage = Math.max(0, Math.ceil(activeTotal / pageSize) - 1);
-      if (page > lastPage) setPage(lastPage);
       setBankAccounts(accounts);
       setBankAccountId((current) =>
         accounts.some((account) => account.id === current)
@@ -291,9 +270,6 @@ export function PaymentBatchManagement() {
     appliedSearch,
     appliedStudentId,
     month,
-    page,
-    pageSize,
-    view,
   ]);
 
   useEffect(() => {
@@ -304,7 +280,6 @@ export function PaymentBatchManagement() {
     setAppliedSearch(search.trim());
     setAppliedStudentId(student?.id);
     setAppliedClassId(selectedClass?.id);
-    setPage(0);
   }
 
   function clearFilters() {
@@ -319,7 +294,6 @@ export function PaymentBatchManagement() {
     setIssuedMonth(null);
     setIssuedDialogOpen(false);
     setMonth("");
-    setPage(0);
   }
 
   const unissuedFees = fees;
@@ -338,27 +312,14 @@ export function PaymentBatchManagement() {
     () => groupByStudent(visibleSuccessfulBatches),
     [visibleSuccessfulBatches],
   );
-  const renderPagination = (count: number, label: string) =>
-    count > 0 ? (
-      <TablePagination
-        component="div"
-        count={count}
-        page={page}
-        rowsPerPage={pageSize}
-        onPageChange={(_, nextPage) => setPage(nextPage)}
-        onRowsPerPageChange={(event) => setPageSize(Number(event.target.value))}
-        rowsPerPageOptions={[10, 20, 50]}
-        labelRowsPerPage={`${label}/trang`}
-        labelDisplayedRows={({ from, to, count: total }) =>
-          `${from}–${to} trên ${total} ${label.toLocaleLowerCase("vi-VN")}`
-        }
-      />
-    ) : null;
-
   const selectedFees = fees.filter((fee) => selectedFeeIds.includes(fee.id));
   const selectedBatches = pendingBatches.filter((batch) =>
     selectedBatchIds.includes(batch.id),
   );
+  const selectedStudentBatches = pendingBatches.filter((batch) =>
+    selectedStudentIds.includes(batch.student.id),
+  );
+  const selectedStudentNoticeCount = selectedStudentBatches.length;
   const selectedFeeTotal = selectedFees.reduce(
     (sum, fee) => sum + Number(fee.remainingAmount),
     0,
@@ -428,6 +389,45 @@ export function PaymentBatchManagement() {
     );
   }
 
+  function toggleStudent(studentId: string, checked: boolean) {
+    setSelectedStudentIds((current) =>
+      checked
+        ? [...new Set([...current, studentId])]
+        : current.filter((id) => id !== studentId),
+    );
+  }
+
+  async function downloadSelectedStudentNotices() {
+    if (!selectedStudentIds.length || !selectedStudentBatches.length) return;
+    if (selectedStudentBatches.length > 5000) {
+      showError("Mỗi lần xuất PDF tối đa 5.000 thông báo");
+      return;
+    }
+    setIsDownloadingSelectedNotices(true);
+    try {
+      const pdf = await downloadNoticeBatchesPdf(
+        selectedStudentBatches.map((batch) => batch.id),
+      );
+      const url = URL.createObjectURL(pdf);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "thong-bao-hoc-phi-hoc-sinh-da-chon.pdf";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      showSuccess(
+        `Đã xuất ${selectedStudentNoticeCount} thông báo cho ${selectedStudentIds.length} học sinh`,
+      );
+    } catch (reasonValue) {
+      showError(
+        reasonValue instanceof Error
+          ? reasonValue.message
+          : "Không thể tải PDF thông báo",
+      );
+    } finally {
+      setIsDownloadingSelectedNotices(false);
+    }
+  }
+
   function handleStudentFilterSelect(item: StudentItem) {
     setStudent({ id: item.id, code: item.code, name: item.fullName });
     studentDialog.onClose();
@@ -495,7 +495,6 @@ export function PaymentBatchManagement() {
       setIssuedMonth(classNoticeMode ? month : null);
       setIssuedDialogOpen(true);
       setView("PENDING");
-      setPage(0);
       showSuccess(
         classNoticeMode
           ? `Đã xuất ${result.batches.length} thông báo theo lớp; đã cập nhật ${"updatedBatchCount" in result ? result.updatedBatchCount : 0} đợt đang chờ`
@@ -595,6 +594,7 @@ export function PaymentBatchManagement() {
       const result = await restructurePendingBatches(input);
       setRestructureMode(null);
       setSelectedBatchIds([]);
+      setSelectedStudentIds([]);
       await load();
       showSuccess(`Đã tạo lại ${result.batches.length} đợt thanh toán`);
     } catch (reasonValue) {
@@ -765,7 +765,6 @@ export function PaymentBatchManagement() {
                   onDelete={() => {
                     setSearch("");
                     setAppliedSearch("");
-                    setPage(0);
                   }}
                 />
               )}
@@ -931,7 +930,6 @@ export function PaymentBatchManagement() {
           scrollButtons="auto"
           onChange={(_, value: View) => {
             setView(value);
-            setPage(0);
             setSelectedFeeIds([]);
             setSelectedBatchIds([]);
           }}
@@ -1178,7 +1176,6 @@ export function PaymentBatchManagement() {
                   </TableBody>
                 </Table>
               </Box>
-              {renderPagination(unissuedTotal, "Khoản học phí")}
             </Paper>
             <SelectionSummary
               count={selectedFeeIds.length}
@@ -1215,7 +1212,7 @@ export function PaymentBatchManagement() {
           <SectionHeader
             icon={<HourglassTopOutlinedIcon />}
             title="Đợt thu đang chờ thanh toán"
-            subtitle="Có thể xuất lại thông báo, tách một batch thành nhiều batch hoặc gộp các batch cùng điều kiện."
+            subtitle="Chọn học sinh để xuất toàn bộ thông báo phù hợp bộ lọc; chọn từng batch để tách hoặc gộp."
           />
           <Box
             sx={{
@@ -1233,20 +1230,27 @@ export function PaymentBatchManagement() {
                   <TableHead sx={{ "& .MuiTableCell-root": { bgcolor: "action.hover", color: "text.secondary", fontWeight: 800 } }}>
                     <TableRow>
                       <TableCell padding="checkbox">
-                        <Checkbox
-                          checked={
-                            Boolean(visiblePendingBatches.length) &&
-                            selectedBatchIds.length ===
-                              visiblePendingBatches.length
-                          }
-                          onChange={(event) =>
-                            setSelectedBatchIds(
-                              event.target.checked
-                                ? visiblePendingBatches.map((batch) => batch.id)
-                                : [],
-                            )
-                          }
-                        />
+                        <Tooltip title="Chọn tất cả học sinh để xuất thông báo">
+                          <span>
+                            <Checkbox
+                              checked={
+                                pendingGroups.length > 0 &&
+                                selectedStudentIds.length === pendingGroups.length
+                              }
+                              indeterminate={
+                                selectedStudentIds.length > 0 &&
+                                selectedStudentIds.length < pendingGroups.length
+                              }
+                              onChange={(event) =>
+                                setSelectedStudentIds(
+                                  event.target.checked
+                                    ? pendingGroups.map((group) => group.student.id)
+                                    : [],
+                                )
+                              }
+                            />
+                          </span>
+                        </Tooltip>
                       </TableCell>
                       <TableCell>Đợt thu</TableCell>
                       <TableCell>Học sinh</TableCell>
@@ -1257,10 +1261,7 @@ export function PaymentBatchManagement() {
                   </TableHead>
                   <TableBody>
                     {pendingGroups.map((group) => {
-                      const groupIds = group.items.map((batch) => batch.id);
-                      const groupSelected = groupIds.every((id) =>
-                        selectedBatchIds.includes(id),
-                      );
+                      const groupSelected = selectedStudentIds.includes(group.student.id);
                       return (
                         <Fragment key={group.student.id}>
                           <TableRow sx={{ bgcolor: "action.hover" }}>
@@ -1268,13 +1269,7 @@ export function PaymentBatchManagement() {
                               <Checkbox
                                 checked={groupSelected}
                                 onChange={(event) =>
-                                  setSelectedBatchIds((current) =>
-                                    event.target.checked
-                                      ? [...new Set([...current, ...groupIds])]
-                                      : current.filter(
-                                          (id) => !groupIds.includes(id),
-                                        ),
-                                  )
+                                  toggleStudent(group.student.id, event.target.checked)
                                 }
                               />
                             </TableCell>
@@ -1294,10 +1289,12 @@ export function PaymentBatchManagement() {
                           {group.items.map((batch) => (
                             <TableRow key={batch.id} hover>
                               <TableCell padding="checkbox">
-                                <Checkbox
-                                  checked={selectedBatchIds.includes(batch.id)}
-                                  onChange={() => toggleBatch(batch.id)}
-                                />
+                                <Tooltip title="Chọn batch để tách hoặc gộp">
+                                  <Checkbox
+                                    checked={selectedBatchIds.includes(batch.id)}
+                                    onChange={() => toggleBatch(batch.id)}
+                                  />
+                                </Tooltip>
                               </TableCell>
                               <TableCell>
                                 <Typography fontWeight={700}>
@@ -1377,15 +1374,42 @@ export function PaymentBatchManagement() {
                   </TableBody>
                 </Table>
               </Box>
-              {renderPagination(pendingTotal, "Đợt thu")}
             </Paper>
-            <SelectionSummary
-              count={selectedBatchIds.length}
-              total={selectedBatchTotal}
-              details={selectedBatches
-                .slice(0, 5)
-                .map((batch) => `${batch.batchNo} · ${batch.student.fullName}`)}
-            >
+            <Stack spacing={2} sx={{ alignSelf: "start", position: { xl: "sticky" }, top: { xl: 24 } }}>
+              <Paper variant="outlined" sx={{ p: 2, borderColor: "primary.light" }}>
+                <Stack spacing={1}>
+                <Typography variant="body2" fontWeight={700}>
+                  Đã chọn {selectedStudentIds.length} học sinh · {selectedStudentNoticeCount} thông báo
+                </Typography>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<DownloadOutlinedIcon />}
+                  onClick={() => void downloadSelectedStudentNotices()}
+                  disabled={
+                    !selectedStudentIds.length ||
+                    !selectedStudentNoticeCount ||
+                    selectedStudentNoticeCount > 5000 ||
+                    isDownloadingSelectedNotices
+                  }
+                  sx={{ mt: 1 }}
+                >
+                  {isDownloadingSelectedNotices ? "Đang xuất PDF..." : "Xuất PDF học sinh đã chọn"}
+                </Button>
+                {selectedStudentNoticeCount > 5000 && (
+                  <Typography variant="caption" color="error.main">
+                    Mỗi lần xuất tối đa 5.000 thông báo.
+                  </Typography>
+                )}
+                </Stack>
+              </Paper>
+              <SelectionSummary
+                count={selectedBatchIds.length}
+                total={selectedBatchTotal}
+                details={selectedBatches
+                  .slice(0, 5)
+                  .map((batch) => `${batch.batchNo} · ${batch.student.fullName}`)}
+              >
               <Button
                 fullWidth
                 variant="contained"
@@ -1418,7 +1442,8 @@ export function PaymentBatchManagement() {
                     Các đợt phải dùng cùng tài khoản nhận tiền.
                   </Alert>
                 )}
-            </SelectionSummary>
+              </SelectionSummary>
+            </Stack>
           </Box>
         </Stack>
       ) : (
@@ -1524,7 +1549,6 @@ export function PaymentBatchManagement() {
                 </TableBody>
               </Table>
             </Box>
-            {renderPagination(successfulTotal, "Đợt thu")}
           </Paper>
         </Stack>
       )}
