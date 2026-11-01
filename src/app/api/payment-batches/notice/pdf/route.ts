@@ -11,18 +11,33 @@ const schema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Danh sách đợt thu bị trùng" });
     }
   }),
+  scope: z.object({
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+    classId: z.string().uuid().optional(),
+  }).optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser();
     if (user instanceof Response) return user;
-    const { batchIds } = schema.parse(await request.json());
+    const { batchIds, scope } = schema.parse(await request.json());
     const pdf = await generatePaymentBatchNoticesPdf(
       batchIds,
       user.fullName,
       user.id,
       getAuditContext(request),
+      scope
+        ? {
+            ...(scope.month
+              ? {
+                  billingYear: Number(scope.month.slice(0, 4)),
+                  billingMonth: Number(scope.month.slice(5, 7)),
+                }
+              : {}),
+            ...(scope.classId ? { classId: scope.classId } : {}),
+          }
+        : undefined,
     );
     return new Response(pdf, {
       headers: {

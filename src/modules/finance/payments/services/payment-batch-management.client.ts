@@ -62,6 +62,11 @@ export type NoticeListFilters = {
   classId?: string;
 };
 
+export type NoticePdfScope = {
+  month?: string;
+  classId?: string;
+};
+
 export async function fetchAllNoticePages<T>(
   fetcher: (filters: NoticeListFilters) => Promise<NoticePage<T>>,
   filters: NoticeListFilters,
@@ -211,11 +216,14 @@ export async function issueClassNoticeBatches(input: {
   }>(response);
 }
 
-export async function downloadNoticeBatchesPdf(batchIds: string[]) {
+export async function downloadNoticeBatchesPdf(
+  batchIds: string[],
+  scope?: NoticePdfScope,
+) {
   const response = await fetch("/api/payment-batches/notice/pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ batchIds }),
+    body: JSON.stringify({ batchIds, ...(scope ? { scope } : {}) }),
   });
   if (!response.ok) {
     throw new Error(

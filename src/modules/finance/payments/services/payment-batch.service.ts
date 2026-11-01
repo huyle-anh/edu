@@ -1123,14 +1123,17 @@ export async function createClassNoticeBatches(
       for (const batch of pendingBatches) {
         for (const allocation of batch.allocations) {
           if (!targetFeeIdSet.has(allocation.tuitionFeeId)) continue;
-          const containsOtherPeriod = batch.allocations.some((item) => {
+          const containsOtherScope = batch.allocations.some((item) => {
             const allocatedFee = feeById.get(item.tuitionFeeId);
             return allocatedFee &&
-              (allocatedFee.billingYear !== year || allocatedFee.billingMonth !== month);
+              (allocatedFee.classId !== data.classId ||
+                allocatedFee.billingYear !== year ||
+                allocatedFee.billingMonth !== month ||
+                allocatedFee.billingType !== "MONTHLY");
           });
-          if (containsOtherPeriod) {
+          if (containsOtherScope) {
             throw new ConflictError(
-              `Khoản học phí kỳ ${data.month} đang nằm trong đợt ${batch.batchNo} cùng với kỳ khác; hãy xử lý đợt đó trước khi phát hành riêng kỳ này`,
+              `Khoản học phí lớp và kỳ đã chọn đang nằm trong đợt ${batch.batchNo} cùng khoản ngoài phạm vi; hãy xử lý đợt đó trước khi phát hành riêng`,
             );
           }
           const existingAllocation = pendingBatchByFee.get(
@@ -1233,7 +1236,10 @@ export async function createClassNoticeBatches(
             batch.allocations.every((allocation) => {
               const allocatedFee = feeById.get(allocation.tuitionFeeId);
               return allocatedFee &&
-                allocatedFee.billingYear === year && allocatedFee.billingMonth === month;
+                allocatedFee.classId === data.classId &&
+                allocatedFee.billingYear === year &&
+                allocatedFee.billingMonth === month &&
+                allocatedFee.billingType === "MONTHLY";
             }),
         );
         const anchorBatch = studentBatches.find((batch) =>

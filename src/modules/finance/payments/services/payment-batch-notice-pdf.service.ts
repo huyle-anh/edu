@@ -119,6 +119,7 @@ export async function generatePaymentBatchNoticesPdf(
   exportedByName: string,
   exportedById: string,
   auditContext?: AuditContext,
+  scope?: { billingYear?: number; billingMonth?: number; classId?: string },
 ) {
   const uniqueIds = [...new Set(batchIds)];
   if (uniqueIds.length !== batchIds.length) {
@@ -168,6 +169,22 @@ export async function generatePaymentBatchNoticesPdf(
         throw new ConflictError(
           "Chỉ có thể gộp PDF của các đợt chuyển khoản đang chờ",
         );
+      }
+      if (scope && (scope.billingYear || scope.billingMonth || scope.classId)) {
+        const outOfScopeBatch = batches.find((batch) =>
+          batch.allocations.some(({ tuitionFee }) =>
+            (scope.billingYear !== undefined &&
+              tuitionFee.billingYear !== scope.billingYear) ||
+            (scope.billingMonth !== undefined &&
+              tuitionFee.billingMonth !== scope.billingMonth) ||
+            (scope.classId !== undefined && tuitionFee.classId !== scope.classId),
+          ),
+        );
+        if (outOfScopeBatch) {
+          throw new ConflictError(
+            `Đợt ${outOfScopeBatch.batchNo} có khoản học phí ngoài kỳ hoặc lớp đang lọc; hãy tách đợt trước khi xuất PDF`,
+          );
+        }
       }
       const batchesById = new Map(batches.map((batch) => [batch.id, batch]));
       const prepared = uniqueIds.map((id) => {

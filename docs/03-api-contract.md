@@ -836,11 +836,11 @@ POST /api/payment-batches/notice/class
 Body gồm `classId`, `month` (`YYYY-MM`), `bankAccountId` và `idempotencyKey`.
 Backend lấy toàn bộ học phí MONTHLY còn nợ của lớp/kỳ đã chọn, gồm khoản chưa
 phát hành và khoản thuộc batch `PENDING`; không đưa khoản đã thanh toán vào
-batch. Mỗi batch được trả về chỉ chứa học phí thuộc `month` đã chọn. Khoản chưa
+batch. Mỗi batch được trả về chỉ chứa học phí MONTHLY thuộc `classId` và `month` đã chọn. Khoản chưa
 phát hành chỉ được thêm vào batch chuyển khoản đang chờ nếu mọi khoản đã có
-trong batch đều thuộc cùng kỳ; nếu không có batch cùng kỳ, API tạo batch mới.
-Batch khác kỳ được giữ nguyên. Nếu khoản mục tiêu đã nằm trong batch nhiều kỳ,
-API trả `409 CONFLICT` yêu cầu xử lý batch đó trước. Phân bổ hiện tại được giữ
+trong batch đều thuộc lớp và `month` đã chọn; nếu không có batch cùng phạm vi,
+API tạo batch mới. Batch ngoài phạm vi được giữ nguyên. Nếu khoản mục tiêu đã
+nằm trong batch có khoản ngoài lớp/kỳ đang chọn, API trả `409 CONFLICT` và yêu cầu xử lý batch đó trước. Phân bổ hiện tại được giữ
 nguyên nếu đã bằng số dư còn nợ; nếu thấp hơn, API tăng phân bổ đến số dư còn
 lại. Khi cập nhật, API cập nhật tổng tiền, tài khoản nhận tiền, snapshot notice
 và audit log trong cùng transaction. Các phân bổ khác cùng kỳ được giữ nguyên.
@@ -861,7 +861,9 @@ khóa với nội dung khác trả `409 CONFLICT`.
 POST /api/payment-batches/notice/pdf
 ```
 
-Body gồm `batchIds` (1–5000 UUID). Tất cả batch phải đang `PENDING` và dùng
+Body gồm `batchIds` (1–5000 UUID), có thể kèm `scope` với `month` (`YYYY-MM`)
+và/hoặc `classId`. Khi gửi `scope`, API từ chối nếu bất kỳ batch nào có khoản
+ngoài kỳ/lớp được chỉ định; cần tách batch trước khi xuất. Tất cả batch phải đang `PENDING` và dùng
 phương thức `BANK_TRANSFER`. PDF gộp có thể chứa nhiều học sinh và nhiều tài
 khoản nhận tiền; từng thông báo dùng QR và snapshot tài khoản riêng của batch.
 Response thành công là file PDF gộp các thông báo.

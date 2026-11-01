@@ -81,6 +81,7 @@ import {
   restructurePendingBatches,
   type NoticeBankAccount,
   type NoticeFee,
+  type NoticePdfScope,
   type PendingBatch,
 } from "@/modules/finance/payments/services/payment-batch-management.client";
 
@@ -161,6 +162,23 @@ function getBatchFeeGroups(
         left.className.localeCompare(right.className, "vi"),
       ),
     }));
+}
+
+function batchHasOutOfScopeFees(
+  batch: PendingBatch,
+  monthFilter: string,
+  classFilter?: string,
+) {
+  return batch.allocations.some(({ tuitionFee }) => {
+    const period = getFeePeriod(tuitionFee.billingYear, tuitionFee.billingMonth);
+    return (monthFilter && period !== monthFilter) ||
+      (classFilter && tuitionFee.class?.id !== classFilter);
+  });
+}
+
+function getNoticePdfScope(month: string, classId?: string): NoticePdfScope | undefined {
+  if (!month && !classId) return undefined;
+  return { ...(month ? { month } : {}), ...(classId ? { classId } : {}) };
 }
 
 function groupFeesByPeriod(items: NoticeFee[]) {
@@ -319,6 +337,9 @@ export function PaymentBatchManagement() {
   const selectedStudentBatches = pendingBatches.filter((batch) =>
     selectedStudentIds.includes(batch.student.id),
   );
+  const selectedStudentOutOfScopeBatches = selectedStudentBatches.filter((batch) =>
+    batchHasOutOfScopeFees(batch, month, appliedClassId),
+  );
   const selectedStudentNoticeCount = selectedStudentBatches.length;
   const selectedFeeTotal = selectedFees.reduce(
     (sum, fee) => sum + Number(fee.remainingAmount),
@@ -399,6 +420,12 @@ export function PaymentBatchManagement() {
 
   async function downloadSelectedStudentNotices() {
     if (!selectedStudentIds.length || !selectedStudentBatches.length) return;
+    if (selectedStudentOutOfScopeBatches.length) {
+      showError(
+        `Batch ${selectedStudentOutOfScopeBatches[0]!.batchNo} có khoản ngoài bộ lọc. Hãy chọn batch đó và tách đợt trước khi xuất PDF.`,
+      );
+      return;
+    }
     if (selectedStudentBatches.length > 5000) {
       showError("Mỗi lần xuất PDF tối đa 5.000 thông báo");
       return;
@@ -407,6 +434,7 @@ export function PaymentBatchManagement() {
     try {
       const pdf = await downloadNoticeBatchesPdf(
         selectedStudentBatches.map((batch) => batch.id),
+        getNoticePdfScope(month, appliedClassId),
       );
       const url = URL.createObjectURL(pdf);
       const anchor = document.createElement("a");
@@ -417,6 +445,36 @@ export function PaymentBatchManagement() {
       showSuccess(
         `Đã xuất ${selectedStudentNoticeCount} thông báo cho ${selectedStudentIds.length} học sinh`,
       );
+    } catch (reasonValue) {
+      showError(
+        reasonValue instanceof Error
+          ? reasonValue.message
+          : "Không thể tải PDF thông báo",
+      );
+    } finally {
+      setIsDownloadingSelectedNotices(false);
+    }
+  }
+
+  async function downloadPendingBatchNotice(batch: PendingBatch) {
+    if (batchHasOutOfScopeFees(batch, month, appliedClassId)) {
+      showError(
+        `Batch ${batch.batchNo} có khoản ngoài bộ lọc. Hãy tách đợt trước khi xuất PDF.`,
+      );
+      return;
+    }
+    setIsDownloadingSelectedNotices(true);
+    try {
+      const pdf = await downloadNoticeBatchesPdf(
+        [batch.id],
+        getNoticePdfScope(month, appliedClassId),
+      );
+      const url = URL.createObjectURL(pdf);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `thong-bao-${batch.batchNo}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
     } catch (reasonValue) {
       showError(
         reasonValue instanceof Error
@@ -503,6 +561,9 @@ export function PaymentBatchManagement() {
       try {
         const pdf = await downloadNoticeBatchesPdf(
           result.batches.map((batch) => batch.id),
+        classNoticeMode
+          ? getNoticePdfScope(month, appliedClassId)
+          : undefined,
         );
         const url = URL.createObjectURL(pdf);
         const anchor = document.createElement("a");
@@ -532,11 +593,12 @@ export function PaymentBatchManagement() {
     try {
       const pdf = await downloadNoticeBatchesPdf(
         issuedBatches.map((batch) => batch.id),
+        getNoticePdfScope(issuedMonth ?? "", issuedClassId ?? undefined),
       );
       const url = URL.createObjectURL(pdf);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `thong-bao-hoc-phi-${month || "nhieu-ky"}.pdf`;
+      anchor.download = `thong-bao-hoc-phi-${issuedMonth || month || "nhieu-ky"}.pdf`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (reasonValue) {
@@ -1343,12 +1405,12 @@ export function PaymentBatchManagement() {
                                   useFlexGap
                                 >
                                   <Button
-                                    component="a"
-                                    href={`/api/payment-batches/${batch.id}/notice/pdf`}
                                     size="small"
                                     startIcon={<DownloadOutlinedIcon />}
+                                    onClick={() => void downloadPendingBatchNotice(batch)}
+                                    disabled={isDownloadingSelectedNotices}
                                   >
-                                    Xuất PDF
+                                    {isDownloadingSelectedNotices ? "Đang xuất" : "Xuất PDF"}
                                   </Button>
                                   <Button
                                     component={Link}
@@ -1381,6 +1443,13 @@ export function PaymentBatchManagement() {
                 <Typography variant="body2" fontWeight={700}>
                   Đã chọn {selectedStudentIds.length} học sinh · {selectedStudentNoticeCount} thông báo
                 </Typography>
+                {selectedStudentOutOfScopeBatches.length > 0 && (
+                  <Alert severity="warning" sx={{ py: 0.25 }}>
+                    Batch {selectedStudentOutOfScopeBatches[0]!.batchNo} có khoản
+                    ngoài kỳ/lớp đang lọc. Hãy chọn batch đó và tách đợt trước khi
+                    xuất PDF.
+                  </Alert>
+                )}
                 <Button
                   fullWidth
                   variant="contained"
@@ -1389,6 +1458,7 @@ export function PaymentBatchManagement() {
                   disabled={
                     !selectedStudentIds.length ||
                     !selectedStudentNoticeCount ||
+                    selectedStudentOutOfScopeBatches.length > 0 ||
                     selectedStudentNoticeCount > 5000 ||
                     isDownloadingSelectedNotices
                   }
@@ -1573,7 +1643,7 @@ export function PaymentBatchManagement() {
         }
         message={
           classNoticeMode
-          ? `Hệ thống chỉ lấy các khoản còn nợ của lớp ${selectedClass?.name ?? "đã chọn"} trong kỳ ${month}. Thông báo chỉ gồm khoản thuộc kỳ này; khoản chưa phát hành chỉ được thêm vào đợt chờ cùng kỳ, nếu không sẽ tạo đợt riêng. Nếu khoản kỳ này đã nằm chung đợt với kỳ khác, cần xử lý đợt đó trước. Đợt đang gắn với sao kê không bị thay đổi.`
+          ? `Hệ thống chỉ lấy các khoản còn nợ của lớp ${selectedClass?.name ?? "đã chọn"} trong kỳ ${month}. Thông báo chỉ gồm khoản thuộc lớp và kỳ này; khoản chưa phát hành chỉ được thêm vào đợt chờ cùng phạm vi, nếu không sẽ tạo đợt riêng. Nếu khoản đã nằm chung đợt với lớp hoặc kỳ khác, cần xử lý đợt đó trước. Đợt đang gắn với sao kê không bị thay đổi.`
             : `Hệ thống sẽ phát hành ${selectedFeeIds.length} khoản cho ${selectedStudentCount} học viên, tự gom theo từng học viên. Tổng số tiền còn nợ: ${money(selectedFeeTotal)}.`
         }
         content={
