@@ -889,11 +889,15 @@ export async function createNoticeBatches(
   );
 }
 
-export async function createClassNoticeBatches(
+async function createClassNoticeBatchesForPeriod(
+  tx: Prisma.TransactionClient,
   data: ClassNoticeBatchCreate,
   actorId: string,
   auditContext?: AuditContext,
 ) {
+  if (!data.month) {
+    throw new ConflictError("Kỳ học phí là bắt buộc cho từng đợt phát hành");
+  }
   const year = Number(data.month.slice(0, 4));
   const month = Number(data.month.slice(5, 7));
   const requestHash = createHash("sha256")
@@ -904,8 +908,6 @@ export async function createClassNoticeBatches(
     }))
     .digest("hex");
 
-  return prisma.$transaction(
-    async (tx) => {
       await tx.$executeRaw(
         Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`class-notice-idempotency:${data.idempotencyKey}`}))`,
       );
@@ -1495,8 +1497,81 @@ export async function createClassNoticeBatches(
         )
       `);
       return result;
+}
+
+export async function createClassNoticeBatches(
+  data: ClassNoticeBatchCreate,
+  actorId: string,
+  auditContext?: AuditContext,
+) {
+  return prisma.$transaction(
+    async (tx) => {
+      const periods = data.month
+        ? [data.month]
+        : (
+            await tx.tuitionFee.findMany({
+              where: {
+                classId: data.classId,
+                billingType: "MONTHLY",
+                status: {
+                  in: [
+                    TuitionFeeStatus.UNPAID,
+                    PARTIAL_FEE_STATUS,
+                    TuitionFeeStatus.OVERDUE,
+                  ],
+                },
+              },
+              select: { billingYear: true, billingMonth: true },
+              distinct: ["billingYear", "billingMonth"],
+              orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
+            })
+          ).map(({ billingYear, billingMonth }) =>
+            `${billingYear}-${String(billingMonth).padStart(2, "0")}`,
+          );
+      if (!periods.length) {
+        throw new ConflictError("Lớp không có khoản học phí tháng còn nợ");
+      }
+
+      const batches = new Map<
+        string,
+        { id: string; batchNo: string; totalAmount: number }
+      >();
+      let replacedBatchCount = 0;
+      let updatedBatchCount = 0;
+      const idempotencyPrefix = `class-all-${createHash("sha256")
+        .update(data.idempotencyKey)
+        .digest("hex")}`;
+
+      for (const period of periods) {
+        const result = await createClassNoticeBatchesForPeriod(
+          tx,
+          {
+            ...data,
+            month: period,
+            idempotencyKey: data.month
+              ? data.idempotencyKey
+              : `${idempotencyPrefix}-${period}`,
+          },
+          actorId,
+          auditContext,
+        );
+        for (const batch of result.batches) {
+          batches.set(batch.id, {
+            ...batch,
+            totalAmount: Number(batch.totalAmount),
+          });
+        }
+        replacedBatchCount += result.replacedBatchCount;
+        updatedBatchCount += result.updatedBatchCount;
+      }
+
+      return {
+        batches: [...batches.values()],
+        replacedBatchCount,
+        updatedBatchCount,
+      };
     },
-    { timeout: 60_000 },
+    { timeout: 120_000 },
   );
 }
 

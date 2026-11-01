@@ -75,7 +75,7 @@ export const noticeBatchCreateSchema = z.object({
 
 export const classNoticeBatchCreateSchema = z.object({
   classId: z.string().uuid(),
-  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Kỳ học phí không hợp lệ"),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Kỳ học phí không hợp lệ").optional(),
   bankAccountId: z.string().uuid(),
   idempotencyKey: z.string().trim().min(1).max(150),
 });

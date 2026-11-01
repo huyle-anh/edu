@@ -522,10 +522,6 @@ export function PaymentBatchManagement() {
       );
       return;
     }
-    if (!month) {
-      showError("Hãy chọn một kỳ học phí để phát hành thông báo theo lớp");
-      return;
-    }
     setClassNoticeMode(true);
     setNoticeDialogOpen(true);
     setDialogError("");
@@ -542,7 +538,7 @@ export function PaymentBatchManagement() {
       const result = classNoticeMode
         ? await issueClassNoticeBatches({
             classId: appliedClassId!,
-            month,
+            ...(month ? { month } : {}),
             bankAccountId,
             idempotencyKey: crypto.randomUUID(),
           })
@@ -1648,7 +1644,7 @@ export function PaymentBatchManagement() {
         }
         message={
           classNoticeMode
-          ? `Hệ thống chỉ lấy các khoản còn nợ của lớp ${selectedClass?.name ?? "đã chọn"} trong kỳ ${month}. Thông báo chỉ gồm khoản thuộc lớp và kỳ này; khoản chưa phát hành chỉ được thêm vào đợt chờ cùng phạm vi, nếu không sẽ tạo đợt riêng. Nếu khoản đã nằm chung đợt với lớp hoặc kỳ khác, cần xử lý đợt đó trước. Đợt đang gắn với sao kê không bị thay đổi.`
+          ? `Hệ thống chỉ lấy các khoản còn nợ của lớp ${selectedClass?.name ?? "đã chọn"} ${month ? `trong kỳ ${month}` : "ở tất cả kỳ học phí"}. Mỗi học sinh và mỗi kỳ được phát hành thành một đợt riêng. Khoản chưa phát hành chỉ được thêm vào đợt chờ cùng lớp và kỳ; nếu không có đợt phù hợp, hệ thống tạo đợt riêng. Nếu khoản đã nằm chung đợt với lớp hoặc kỳ khác, cần xử lý đợt đó trước. Đợt đang gắn với sao kê không bị thay đổi.`
             : `Hệ thống sẽ phát hành ${selectedFeeIds.length} khoản cho ${selectedStudentCount} học viên, tự gom theo từng học viên. Tổng số tiền còn nợ: ${money(selectedFeeTotal)}.`
         }
         content={

@@ -833,17 +833,20 @@ tạo học phí.
 POST /api/payment-batches/notice/class
 ```
 
-Body gồm `classId`, `month` (`YYYY-MM`), `bankAccountId` và `idempotencyKey`.
-Backend lấy toàn bộ học phí MONTHLY còn nợ của lớp/kỳ đã chọn, gồm khoản chưa
-phát hành và khoản thuộc batch `PENDING`; không đưa khoản đã thanh toán vào
-batch. Mỗi batch được trả về chỉ chứa học phí MONTHLY thuộc `classId` và `month` đã chọn. Khoản chưa
-phát hành chỉ được thêm vào batch chuyển khoản đang chờ nếu mọi khoản đã có
-trong batch đều thuộc lớp và `month` đã chọn; nếu không có batch cùng phạm vi,
-API tạo batch mới. Batch ngoài phạm vi được giữ nguyên. Nếu khoản mục tiêu đã
-nằm trong batch có khoản ngoài lớp/kỳ đang chọn, API trả `409 CONFLICT` và yêu cầu xử lý batch đó trước. Phân bổ hiện tại được giữ
-nguyên nếu đã bằng số dư còn nợ; nếu thấp hơn, API tăng phân bổ đến số dư còn
-lại. Khi cập nhật, API cập nhật tổng tiền, tài khoản nhận tiền, snapshot notice
-và audit log trong cùng transaction. Các phân bổ khác cùng kỳ được giữ nguyên.
+Body gồm `classId`, `bankAccountId`, `idempotencyKey`; `month` (`YYYY-MM`) là
+tùy chọn. Có `month` thì backend lấy học phí MONTHLY còn nợ của lớp/kỳ đó. Bỏ
+`month` thì backend lấy học phí MONTHLY còn nợ ở tất cả kỳ và xử lý tất cả các
+kỳ trong cùng transaction. Không đưa khoản đã thanh toán vào batch. Mỗi batch
+chỉ chứa khoản của cùng học sinh, lớp và kỳ; khi phát hành tất cả kỳ, cùng một
+học sinh có một batch riêng cho mỗi kỳ. Khoản chưa phát hành chỉ được thêm vào
+batch chuyển khoản đang chờ nếu mọi khoản đã có trong batch đều thuộc lớp và
+kỳ tương ứng; nếu không có batch cùng phạm vi, API tạo batch mới. Batch ngoài
+phạm vi được giữ nguyên. Nếu khoản mục tiêu đã nằm trong batch có khoản ngoài
+lớp/kỳ tương ứng, API trả `409 CONFLICT` và yêu cầu xử lý batch đó trước. Phân
+bổ hiện tại được giữ nguyên nếu đã bằng số dư còn nợ; nếu thấp hơn, API tăng
+phân bổ đến số dư còn lại. Khi cập nhật, API cập nhật tổng tiền, tài khoản nhận
+tiền, snapshot notice và audit log trong cùng transaction. Các phân bổ khác
+cùng kỳ được giữ nguyên.
 Phản hồi trả danh sách
 batch để xuất PDF gộp qua endpoint PDF hiện có, `updatedBatchCount` và
 `replacedBatchCount` (luôn bằng 0 để tương thích với client cũ). Batch đang được

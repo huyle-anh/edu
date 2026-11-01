@@ -574,17 +574,18 @@ khoản học phí còn nợ đã tồn tại; thao tác này không tự tạo 
 được chọn phải được gom thành tối đa một batch cho mỗi học viên. Nếu học viên
 nộp tiền mặt, nhân viên phải thu từ màn hình thanh toán với phương thức `CASH`.
 
-Khi phát hành theo lớp và kỳ, hệ thống lấy toàn bộ khoản học phí tháng còn nợ
-trong lớp/kỳ, bao gồm khoản chưa phát hành và khoản đang thuộc batch
-`BANK_TRANSFER` `PENDING`. Mỗi thông báo theo lớp/kỳ chỉ được chứa khoản thuộc
-đúng lớp và kỳ đã chọn. Khoản chưa phát hành chỉ được thêm vào batch chuyển
-khoản đang chờ nếu mọi khoản đã có trong batch đều thuộc cùng lớp và kỳ; nếu
-không có batch phù hợp, hệ thống tạo batch mới. Batch ngoài lớp/kỳ được giữ
-nguyên. Khoản mục tiêu đã nằm trong batch ngoài phạm vi không được phát hành
-lại; nhân viên phải xử lý batch đó trước để tránh thông báo/QR có khoản ngoài
-lớp/kỳ được chọn. Nếu cập nhật batch cùng phạm vi, hệ thống cập nhật tổng tiền,
-tài khoản nhận tiền và snapshot thông báo trong cùng transaction để QR/PDF mới
-phản ánh số tiền và tài khoản hiện hành.
+Khi phát hành theo lớp, nếu chọn kỳ thì hệ thống lấy toàn bộ khoản học phí tháng
+còn nợ trong lớp/kỳ đó. Nếu để trống kỳ, hệ thống lấy các khoản MONTHLY còn nợ
+của lớp ở tất cả kỳ. Trong cả hai trường hợp, mỗi batch chỉ chứa khoản của cùng
+một học sinh, lớp và kỳ; khi phát hành tất cả kỳ, cùng một học sinh có một batch
+riêng cho mỗi kỳ. Khoản chưa phát hành chỉ được thêm vào batch chuyển khoản đang
+chờ nếu mọi khoản đã có trong batch đều thuộc cùng lớp và kỳ; nếu không có batch
+phù hợp, hệ thống tạo batch mới. Batch ngoài phạm vi được giữ nguyên. Khoản mục
+tiêu đã nằm trong batch ngoài phạm vi không được phát hành lại; nhân viên phải
+xử lý batch đó trước để tránh thông báo/QR có khoản ngoài lớp/kỳ được chọn. Nếu
+cập nhật batch cùng phạm vi, hệ thống cập nhật tổng tiền, tài khoản nhận tiền và
+snapshot thông báo trong cùng transaction để QR/PDF mới phản ánh số tiền và tài
+khoản hiện hành.
 Khoản đã thanh toán không được đưa vào batch mới. Mọi batch được cập nhật hoặc
 tạo phải có audit log.
 Batch đang được liên kết với dòng sao kê không bị sửa phân bổ hoặc đổi tài khoản;

@@ -192,7 +192,7 @@ export async function issueNoticeBatches(input: {
 
 export async function issueClassNoticeBatches(input: {
   classId: string;
-  month: string;
+  month?: string;
   bankAccountId: string;
   idempotencyKey: string;
 }) {
