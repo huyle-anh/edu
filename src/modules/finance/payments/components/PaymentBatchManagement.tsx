@@ -222,7 +222,8 @@ export function PaymentBatchManagement() {
   const [restructureMode, setRestructureMode] =
     useState<RestructureMode | null>(null);
   const [reason, setReason] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dialogError, setDialogError] = useState("");
@@ -243,23 +244,28 @@ export function PaymentBatchManagement() {
     setSelectedStudentIds([]);
   }, [appliedClassId, appliedSearch, appliedStudentId, month, view]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (filters = {
+    month,
+    search: search.trim(),
+    studentId: student?.id,
+    classId: selectedClass?.id,
+  }) => {
     setLoading(true);
     setError("");
-    const filters = {
-      month,
+    const listFilters = {
+      month: filters.month,
       page: 1,
       pageSize: 100,
-      search: appliedSearch,
-      studentId: appliedStudentId,
-      classId: appliedClassId,
+      search: filters.search,
+      studentId: filters.studentId,
+      classId: filters.classId,
     };
     try {
       const [feeItems, batchItems, paidBatchItems, accounts] =
         await Promise.all([
-          fetchAllNoticePages(fetchOutstandingFees, filters),
-          fetchAllNoticePages(fetchPendingBatches, filters),
-          fetchAllNoticePages(fetchSuccessfulBatches, filters),
+          fetchAllNoticePages(fetchOutstandingFees, listFilters),
+          fetchAllNoticePages(fetchPendingBatches, listFilters),
+          fetchAllNoticePages(fetchSuccessfulBatches, listFilters),
           fetchNoticeBankAccounts(),
         ]);
       setFees(feeItems.items);
@@ -282,22 +288,21 @@ export function PaymentBatchManagement() {
       );
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
-  }, [
-    appliedClassId,
-    appliedSearch,
-    appliedStudentId,
-    month,
-  ]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }, [month, search, selectedClass, student]);
 
   function applyFilters() {
-    setAppliedSearch(search.trim());
+    const nextFilters = {
+      month,
+      search: search.trim(),
+      studentId: student?.id,
+      classId: selectedClass?.id,
+    };
+    setAppliedSearch(nextFilters.search);
     setAppliedStudentId(student?.id);
     setAppliedClassId(selectedClass?.id);
+    void load(nextFilters);
   }
 
   function clearFilters() {
@@ -1231,7 +1236,7 @@ export function PaymentBatchManagement() {
                     {!loading && !unissuedFees.length && (
                       <TableRow>
                         <TableCell colSpan={6}>
-                          <EmptyState message="Không có khoản học phí chưa phát thông báo với bộ lọc hiện tại" />
+                          <EmptyState message={hasLoaded ? "Không có khoản học phí chưa phát thông báo với bộ lọc hiện tại" : "Bấm Tìm kiếm hoặc Làm mới để tải dữ liệu"} />
                         </TableCell>
                       </TableRow>
                     )}
@@ -1429,7 +1434,7 @@ export function PaymentBatchManagement() {
                     {!loading && !visiblePendingBatches.length && (
                       <TableRow>
                         <TableCell colSpan={6}>
-                          <EmptyState message="Không có đợt thanh toán đang chờ với bộ lọc hiện tại" />
+                          <EmptyState message={hasLoaded ? "Không có đợt thanh toán đang chờ với bộ lọc hiện tại" : "Bấm Tìm kiếm hoặc Làm mới để tải dữ liệu"} />
                         </TableCell>
                       </TableRow>
                     )}
@@ -1612,7 +1617,7 @@ export function PaymentBatchManagement() {
                   {!loading && !visibleSuccessfulBatches.length && (
                     <TableRow>
                       <TableCell colSpan={6}>
-                        <EmptyState message="Không có đợt đã thanh toán với bộ lọc hiện tại" />
+                        <EmptyState message={hasLoaded ? "Không có đợt đã thanh toán với bộ lọc hiện tại" : "Bấm Tìm kiếm hoặc Làm mới để tải dữ liệu"} />
                       </TableCell>
                     </TableRow>
                   )}
