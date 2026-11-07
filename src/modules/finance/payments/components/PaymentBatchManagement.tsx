@@ -432,20 +432,53 @@ export function PaymentBatchManagement() {
     );
   }
 
-  function toggleBatch(id: string) {
+  function setStudentGroupSelection(
+    group: (typeof pendingGroups)[number],
+    checked: boolean,
+  ) {
+    const batchIds = group.items.map((batch) => batch.id);
+    setSelectedStudentIds((current) =>
+      checked
+        ? [...new Set([...current, group.student.id])]
+        : current.filter((id) => id !== group.student.id),
+    );
     setSelectedBatchIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
+      checked
+        ? [...new Set([...current, ...batchIds])]
+        : current.filter((id) => !batchIds.includes(id)),
     );
   }
 
-  function toggleStudent(studentId: string, checked: boolean) {
-    setSelectedStudentIds((current) =>
-      checked
-        ? [...new Set([...current, studentId])]
-        : current.filter((id) => id !== studentId),
+  function toggleStudentBatch(
+    group: (typeof pendingGroups)[number],
+    batchId: string,
+  ) {
+    const nextBatchIds = selectedBatchIds.includes(batchId)
+      ? selectedBatchIds.filter((id) => id !== batchId)
+      : [...selectedBatchIds, batchId];
+    const allGroupBatchesSelected = group.items.every((batch) =>
+      nextBatchIds.includes(batch.id),
     );
+
+    setSelectedBatchIds(nextBatchIds);
+    setSelectedStudentIds((current) =>
+      allGroupBatchesSelected
+        ? [...new Set([...current, group.student.id])]
+        : current.filter((id) => id !== group.student.id),
+    );
+  }
+
+  function openStudentMergeDialog(group: (typeof pendingGroups)[number]) {
+    const batchIds = group.items.map((batch) => batch.id);
+    const bankAccountIds = new Set(
+      group.items.map((batch) => batch.bankAccountId),
+    );
+    if (batchIds.length < 2 || bankAccountIds.size > 1) return;
+
+    setStudentGroupSelection(group, true);
+    setRestructureMode("MERGE");
+    setReason("");
+    setDialogError("");
   }
 
   async function downloadSelectedStudentNotices() {
@@ -1285,13 +1318,17 @@ export function PaymentBatchManagement() {
                                 selectedStudentIds.length > 0 &&
                                 selectedStudentIds.length < pendingGroups.length
                               }
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const checked = event.target.checked;
                                 setSelectedStudentIds(
-                                  event.target.checked
-                                    ? pendingGroups.map((group) => group.student.id)
+                                  checked ? pendingGroups.map((group) => group.student.id) : [],
+                                );
+                                setSelectedBatchIds(
+                                  checked
+                                    ? pendingGroups.flatMap((group) => group.items.map((batch) => batch.id))
                                     : [],
-                                )
-                              }
+                                );
+                              }}
                             />
                           </span>
                         </Tooltip>
@@ -1306,28 +1343,63 @@ export function PaymentBatchManagement() {
                   <TableBody>
                     {pendingGroups.map((group) => {
                       const groupSelected = selectedStudentIds.includes(group.student.id);
+                      const selectedGroupBatchCount = group.items.filter((batch) =>
+                        selectedBatchIds.includes(batch.id),
+                      ).length;
                       return (
                         <Fragment key={group.student.id}>
                           <TableRow sx={{ bgcolor: "action.hover" }}>
                             <TableCell padding="checkbox">
                               <Checkbox
                                 checked={groupSelected}
+                                indeterminate={selectedGroupBatchCount > 0 && selectedGroupBatchCount < group.items.length}
                                 onChange={(event) =>
-                                  toggleStudent(group.student.id, event.target.checked)
+                                  setStudentGroupSelection(group, event.target.checked)
                                 }
                               />
                             </TableCell>
                             <TableCell colSpan={5}>
-                              <Typography fontWeight={800}>
-                                {group.student.fullName}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
+                              <Stack
+                                direction={{ xs: "column", sm: "row" }}
+                                justifyContent="space-between"
+                                alignItems={{ sm: "center" }}
+                                spacing={1}
                               >
-                                {group.student.code} · {group.items.length} đợt
-                                đang chờ
-                              </Typography>
+                                <Box>
+                                  <Typography fontWeight={800}>
+                                    {group.student.fullName}
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    {group.student.code} · {group.items.length} đợt
+                                    đang chờ
+                                  </Typography>
+                                </Box>
+                                {group.items.length > 1 && (() => {
+                                  const canMergeStudentGroup =
+                                    new Set(group.items.map((batch) => batch.bankAccountId)).size === 1;
+                                  return (
+                                    <Tooltip
+                                      title={canMergeStudentGroup ? "Gộp tất cả batch đang chờ của học sinh này" : "Chỉ gộp được các batch cùng tài khoản nhận tiền"}
+                                    >
+                                      <span>
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          color="warning"
+                                          startIcon={<MergeTypeOutlinedIcon />}
+                                          disabled={!canMergeStudentGroup || busy}
+                                          onClick={() => openStudentMergeDialog(group)}
+                                        >
+                                          Gộp {group.items.length} đợt
+                                        </Button>
+                                      </span>
+                                    </Tooltip>
+                                  );
+                                })()}
+                              </Stack>
                             </TableCell>
                           </TableRow>
                           {group.items.map((batch) => (
@@ -1336,7 +1408,7 @@ export function PaymentBatchManagement() {
                                 <Tooltip title="Chọn batch để tách hoặc gộp">
                                   <Checkbox
                                     checked={selectedBatchIds.includes(batch.id)}
-                                    onChange={() => toggleBatch(batch.id)}
+                                    onChange={() => toggleStudentBatch(group, batch.id)}
                                   />
                                 </Tooltip>
                               </TableCell>
