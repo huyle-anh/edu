@@ -62,10 +62,10 @@ export function LoginForm(): ReactElement {
         <Stack spacing={3}>
           <Box>
             <Typography variant="h4" fontWeight={700} gutterBottom>
-              Sign in
+              Đăng nhập
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Login to manage classroom rental operations.
+              Đăng nhập để quản lý lớp học và học phí.
             </Typography>
           </Box>
 
@@ -76,13 +76,14 @@ export function LoginForm(): ReactElement {
               label="Email"
               type="email"
               fullWidth
+              autoFocus
               autoComplete="email"
               error={Boolean(errors.email || serverState.fieldErrors?.email)}
               helperText={errors.email?.message ?? serverState.fieldErrors?.email}
               {...register("email")}
             />
             <TextField
-              label="Password"
+              label="Mật khẩu"
               type="password"
               fullWidth
               autoComplete="current-password"
@@ -91,21 +92,20 @@ export function LoginForm(): ReactElement {
               {...register("password")}
             />
 
-            <FormControlLabel control={<Checkbox {...register("rememberMe")} />} label="Remember me" />
+            <FormControlLabel control={<Checkbox {...register("rememberMe")} />} label="Ghi nhớ đăng nhập" />
 
             <Button
               type="submit"
               variant="contained"
-              size="large"
               disabled={pending}
               startIcon={<LoginOutlinedIcon />}
             >
-              {pending ? "Signing in..." : "Login"}
+              {pending ? "Đang đăng nhập..." : "Đăng nhập"}
             </Button>
           </Stack>
 
           <Typography variant="caption" color="text.secondary">
-            Demo accounts: admin@example.com / staff@example.com / teacher@example.com
+            Tài khoản mặc định: admin@edu.local
           </Typography>
         </Stack>
       </CardContent>

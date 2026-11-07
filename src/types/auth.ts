@@ -1,10 +1,8 @@
-import type { Role } from "@prisma/client";
-
 export type SessionUser = {
   id: string;
   email: string;
   fullName: string;
-  role: Role;
+  teacherId?: string | null;
 };
 
 export type SessionPayload = {

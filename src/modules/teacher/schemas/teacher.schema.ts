@@ -1,21 +1,25 @@
 import { z } from "zod";
 
 export const teacherCreateSchema = z.object({
-  code: z.string().min(1, "Teacher code is required").max(50),
+  fullName: z.string().min(1, "Tên giáo viên là bắt buộc").max(255, "Tên giáo viên tối đa 255 ký tự"),
   phone: z.string().optional(),
-  email: z.string().email().optional(),
   bankAccount: z.string().optional(),
   specialty: z.string().optional(),
+  commissionPercent: z
+    .number()
+    .min(0, "Tỷ lệ không được âm")
+    .max(100, "Tỷ lệ không được vượt quá 100")
+    .default(0),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
 });
 
-export const teacherUpdateSchema = teacherCreateSchema.partial();
+export const teacherUpdateSchema = teacherCreateSchema.partial().extend({ code: z.string().trim().min(1).max(50).optional() });
 
 export const teacherFilterSchema = z.object({
   search: z.string().optional(),
-  status: z.string().optional(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10),
+  status: z.enum(["ACTIVE", "INACTIVE", "ALL"]).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(10),
 });
 
 export type TeacherCreate = z.infer<typeof teacherCreateSchema>;

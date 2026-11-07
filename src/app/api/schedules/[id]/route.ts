@@ -1,66 +1,84 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { requireApiUser } from "@/lib/api-auth";
 import { classScheduleUpdateSchema } from "@/modules/schedule/schemas/schedule.schema";
+import { apiError, apiSuccess, handleApiError } from "@/lib/api";
+import { BadRequestError } from "@/lib/errors";
 import {
   getClassScheduleById,
   updateClassSchedule,
   deleteClassSchedule,
+  ScheduleConflictError,
 } from "@/modules/schedule/services/schedule.service";
-import { prisma } from "@/lib/prisma";
 
-type Params = Promise<{
-  id: string;
-}>;
+type Params = Promise<{ id: string }>;
+
+async function getScheduleId(context: { params?: Params }) {
+  const routeParams = await context.params;
+  if (!routeParams?.id) throw new BadRequestError("SCHEDULE_ID_REQUIRED");
+  return routeParams.id;
+}
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Params },
+  _request: NextRequest,
+  context: { params?: Params },
 ) {
   try {
-    const { id } = await params;
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
+    const id = await getScheduleId(context);
     const schedule = await getClassScheduleById(id);
     if (!schedule) {
-      return NextResponse.json(
-        { error: "Schedule not found" },
-        { status: 404 },
-      );
+      return apiError("NOT_FOUND", "Schedule not found", 404);
     }
-    return NextResponse.json(schedule);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiSuccess(schedule);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "SCHEDULE_ID_REQUIRED") return apiError("BAD_REQUEST", "Thiếu mã lịch học", 400);
+    return handleApiError(error, "Failed to fetch schedule");
   }
 }
 
-export async function PUT(
+export async function PATCH(
   request: NextRequest,
-  { params }: { params: Params },
+  context: { params?: Params },
 ) {
   try {
-    const { id } = await params;
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
+    const id = await getScheduleId(context);
+    const existingSchedule = await getClassScheduleById(id);
+    if (!existingSchedule) {
+      return apiError("NOT_FOUND", "Không tìm thấy lịch học", 404);
+    }
+
     const body = await request.json();
     const data = classScheduleUpdateSchema.parse(body);
 
-    await updateClassSchedule(id, data);
-    // Return with relations
-    const schedule = await prisma.classSchedule.findUnique({
-      where: { id },
-      include: { class: true, room: true },
-    });
-    return NextResponse.json(schedule);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const { schedule } = await updateClassSchedule(id, data);
+    return apiSuccess(schedule);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "SCHEDULE_ID_REQUIRED") return apiError("BAD_REQUEST", "Thiếu mã lịch học", 400);
+    if (error instanceof ScheduleConflictError) {
+      return apiError("CONFLICT", error.message, 409, {
+        conflicts: error.conflicts,
+      });
+    }
+
+    return handleApiError(error, "Failed to update schedule");
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Params },
+  _request: NextRequest,
+  context: { params?: Params },
 ) {
   try {
-    const { id } = await params;
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
+    const id = await getScheduleId(context);
     const schedule = await deleteClassSchedule(id);
-    return NextResponse.json(schedule);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiSuccess(schedule);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "SCHEDULE_ID_REQUIRED") return apiError("BAD_REQUEST", "Thiếu mã lịch học", 400);
+    return handleApiError(error, "Failed to delete schedule");
   }
 }

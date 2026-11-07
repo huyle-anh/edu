@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiSuccess, handleApiError } from "@/lib/api";
+import { requireApiUser } from "@/lib/api-auth";
 import {
   teacherCreateSchema,
   teacherFilterSchema,
@@ -11,35 +12,40 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
     const searchParams = request.nextUrl.searchParams;
     const filter = teacherFilterSchema.parse({
       search: searchParams.get("search") || undefined,
       status: searchParams.get("status") || undefined,
-      page: parseInt(searchParams.get("page") || "1"),
-      limit: parseInt(searchParams.get("limit") || "10"),
+      page: Number(searchParams.get("page") || "1"),
+      pageSize: Number(searchParams.get("pageSize") || "10"),
     });
 
     const result = await getTeachers(filter);
-    return NextResponse.json({
+    return apiSuccess({
       items: result.teachers,
       total: result.total,
       page: result.page,
-      limit: result.limit,
+      pageSize: result.pageSize,
       pages: result.pages,
+      pagination: result.pagination,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return handleApiError(error, "Failed to fetch teachers");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
     const body = await request.json();
     const data = teacherCreateSchema.parse(body);
 
     const teacher = await createTeacher(data);
-    return NextResponse.json(teacher, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiSuccess(teacher, 201);
+  } catch (error: unknown) {
+    return handleApiError(error, "Failed to create teacher");
   }
 }

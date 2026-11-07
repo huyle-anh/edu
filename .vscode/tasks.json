@@ -1,75 +1,160 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "install dependencies",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"install"
-			]
-		},
-		{
-			"label": "typecheck",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"typecheck"
-			]
-		},
-		{
-			"label": "typecheck2",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"typecheck"
-			]
-		},
-		{
-			"label": "typecheck3",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"typecheck"
-			]
-		},
-		{
-			"label": "lint",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"lint"
-			]
-		},
-		{
-			"label": "sync lockfile",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"install"
-			]
-		},
-		{
-			"label": "typecheck-final",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"typecheck"
-			]
-		},
-		{
-			"label": "lint-final",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"lint"
-			]
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "install dependencies",
+      "type": "shell",
+      "command": "npm",
+      "args": ["install"]
+    },
+    {
+      "label": "typecheck",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "typecheck"]
+    },
+    {
+      "label": "typecheck2",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "typecheck"]
+    },
+    {
+      "label": "typecheck3",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "typecheck"]
+    },
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "lint"]
+    },
+    {
+      "label": "sync lockfile",
+      "type": "shell",
+      "command": "npm",
+      "args": ["install"]
+    },
+    {
+      "label": "typecheck-final",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "typecheck"]
+    },
+    {
+      "label": "lint-final",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "lint"]
+    },
+    {
+      "label": "Deploy production (backup DB → push → Vercel)",
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/scripts/deploy-production.sh",
+        "${input:confirmProductionDeploy}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy code lên Vercel",
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/scripts/deploy-code-only.sh",
+        "${input:confirmCodeOnlyDeploy}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Setup PostgreSQL Neon (Free · Singapore · Production)",
+      "type": "process",
+      "command": "npx",
+      "args": [
+        "vercel",
+        "integration",
+        "add",
+        "neon",
+        "--plan",
+        "free_v3",
+        "--environment",
+        "production",
+        "--no-env-pull",
+        "--name",
+        "edu-production-db",
+        "--metadata",
+        "region=sin1",
+        "--metadata",
+        "auth=false",
+        "--json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backup local DB → restore Neon Production (OVERWRITES)",
+      "type": "process",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/scripts/restore-local-db-production.mjs",
+        "${input:confirmDatabaseRestore}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "confirmProductionDeploy",
+      "type": "promptString",
+      "description": "Nhập DEPLOY để xác nhận backup DB, git push và deploy production lên Vercel"
+    },
+    {
+      "id": "confirmCodeOnlyDeploy",
+      "type": "promptString",
+      "description": "Nhập DEPLOY CODE để build và deploy code hiện tại lên Vercel production (không backup DB, không commit/push)"
+    },
+    {
+      "id": "confirmDatabaseRestore",
+      "type": "promptString",
+      "description": "Thao tác sẽ thay thế dữ liệu Neon Production. Nhập RESTORE PRODUCTION để xác nhận"
+    }
+  ]
 }

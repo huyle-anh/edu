@@ -7,42 +7,56 @@ import {
   Button,
   Chip,
   Paper,
-  Typography,
   InputAdornment,
+  MenuItem,
+  Select,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
-import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import { GridColDef } from "@mui/x-data-grid";
-import { useState, useCallback } from "react";
-import { BaseTable } from "@/components/BaseTable";
-import { FormDialog } from "@/components/FormDialog";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useState, useCallback, useEffect } from "react";
+import { BaseTable } from "@/components/shared/tables/BaseTable";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { FormDialog } from "@/components/shared/dialogs/FormDialog";
+import { ConfirmDialog } from "@/components/shared/dialogs/ConfirmDialog";
 import { useList } from "@/hooks/useList";
 import { useSnackbar } from "@/hooks/useSnackbar";
 import { TeacherForm } from "./TeacherForm";
 import type { ReactElement } from "react";
 import type { z } from "zod";
 import { teacherCreateSchema } from "@/modules/teacher/schemas/teacher.schema";
+import { FilterActions } from "@/components/shared/FilterActions";
 
 type TeacherFormData = z.infer<typeof teacherCreateSchema>;
 
 export interface Teacher {
   id: string;
+  fullName: string;
   code: string;
   phone?: string;
-  email?: string;
   bankAccount?: string;
   specialty?: string;
+  commissionPercent: number;
   status: TeacherFormData["status"];
 }
 
-const columns: GridColDef[] = [
+type TeacherRow = Teacher & {
+  _onEdit?: (teacher: Teacher) => void;
+  _onDelete?: (teacher: Teacher) => void;
+};
+
+const getColumns = (): GridColDef<TeacherRow>[] => [
   {
     field: "code",
     headerName: "Mã giáo viên",
     minWidth: 130,
     flex: 0.7,
+  },
+  {
+    field: "fullName",
+    headerName: "Tên giáo viên",
+    minWidth: 200,
+    flex: 1,
   },
   {
     field: "phone",
@@ -51,16 +65,18 @@ const columns: GridColDef[] = [
     flex: 0.8,
   },
   {
-    field: "email",
-    headerName: "Email",
-    minWidth: 180,
-    flex: 1,
-  },
-  {
     field: "specialty",
     headerName: "Chuyên môn",
     minWidth: 150,
     flex: 0.8,
+  },
+  {
+    field: "commissionPercent",
+    headerName: "Tỷ lệ trích",
+    minWidth: 110,
+    align: "right",
+    headerAlign: "right",
+    valueFormatter: (value) => `${Number(value ?? 0)}%`,
   },
   {
     field: "status",
@@ -100,7 +116,7 @@ const columns: GridColDef[] = [
   {
     field: "actions",
     headerName: "Thao tác",
-    minWidth: 160,
+    minWidth: 300,
     sortable: false,
     filterable: false,
     disableColumnMenu: true,
@@ -119,13 +135,10 @@ const columns: GridColDef[] = [
       >
         <Button
           size="small"
-          variant="contained"
+          variant="outlined"
           onClick={() => params.row._onEdit?.(params.row)}
           sx={{
-            minWidth: 56,
-            height: 30,
-            borderRadius: 1.5,
-            textTransform: "none",
+            minWidth: 64,
           }}
         >
           Sửa
@@ -133,17 +146,11 @@ const columns: GridColDef[] = [
 
         <Button
           size="small"
-          variant="contained"
+          variant="outlined"
           color="error"
           onClick={() => params.row._onDelete?.(params.row)}
-          sx={{
-            minWidth: 56,
-            height: 30,
-            borderRadius: 1.5,
-            textTransform: "none",
-          }}
         >
-          Xóa
+          Ngừng hoạt động
         </Button>
       </Stack>
     ),
@@ -152,17 +159,38 @@ const columns: GridColDef[] = [
 
 export function TeacherList(): ReactElement {
   const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [appliedStatus, setAppliedStatus] = useState("ALL");
 
   const {
     data,
     isLoading,
     error,
     page,
-    limit,
+    pageSize,
     setPageNumber,
     setPageSize,
     refresh,
-  } = useList<Teacher>("/api/teachers", { limit: 10, search });
+  } = useList<Teacher>("/api/teachers", { pageSize: 10, search: appliedSearch, status: appliedStatus });
+
+  useEffect(() => {
+    setPageNumber(1);
+  }, [appliedSearch, appliedStatus, setPageNumber]);
+
+  const applyFilters = useCallback(() => {
+    setAppliedSearch(search.trim());
+    setAppliedStatus(status);
+    setPageNumber(1);
+  }, [search, status, setPageNumber]);
+
+  const clearFilters = useCallback(() => {
+    setSearch("");
+    setAppliedSearch("");
+    setStatus("ALL");
+    setAppliedStatus("ALL");
+    setPageNumber(1);
+  }, [setPageNumber]);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -199,14 +227,20 @@ export function TeacherList(): ReactElement {
       });
 
       if (!response.ok) {
-        throw new Error("Không thể xóa giáo viên");
+        throw new Error(
+          "Không thể chuyển giáo viên sang trạng thái ngừng hoạt động",
+        );
       }
 
-      showSuccess("Xóa giáo viên thành công");
+      showSuccess("Đã chuyển giáo viên sang trạng thái ngừng hoạt động");
       setDeleteId(null);
       refresh();
     } catch (err) {
-      showError(err instanceof Error ? err.message : "Lỗi khi xóa giáo viên");
+      showError(
+        err instanceof Error
+          ? err.message
+          : "Lỗi khi cập nhật trạng thái giáo viên",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -219,7 +253,7 @@ export function TeacherList(): ReactElement {
 
         if (editingId) {
           const response = await fetch(`/api/teachers/${editingId}`, {
-            method: "PUT",
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(formData),
           });
@@ -263,70 +297,24 @@ export function TeacherList(): ReactElement {
   }));
 
   return (
-    <Stack spacing={2.5}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.paper",
-        }}
-      >
+    <Stack spacing={{ xs: 2, md: 3 }}>
+      <PageHeader
+        title="Quản lý giáo viên"
+        description="Danh sách giáo viên, chuyên môn và trạng thái hoạt động."
+        actions={<Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>Thêm giáo viên</Button>}
+      />
+
+      <Paper sx={{ p: { xs: 2, md: 2.5 } }}>
         <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={2}
-          alignItems={{ xs: "stretch", md: "center" }}
-          justifyContent="space-between"
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          alignItems={{ sm: "center" }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-              }}
-            >
-              <SchoolOutlinedIcon />
-            </Box>
-
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Quản lý giáo viên
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Danh sách giáo viên, chuyên môn và trạng thái hoạt động
-              </Typography>
-            </Box>
-          </Box>
-
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
-            sx={{
-              borderRadius: 2,
-              px: 2.5,
-              height: 40,
-              whiteSpace: "nowrap",
-              textTransform: "none",
-            }}
-          >
-            Thêm giáo viên
-          </Button>
-        </Stack>
-
-        <Box sx={{ mt: 2.5 }}>
           <TextField
-            placeholder="Tìm theo mã, số điện thoại hoặc email..."
+            placeholder="Tìm theo mã hoặc số điện thoại..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") applyFilters(); }}
             size="small"
             fullWidth
             InputProps={{
@@ -337,6 +325,7 @@ export function TeacherList(): ReactElement {
               ),
             }}
             sx={{
+              flex: 1,
               maxWidth: 460,
               "& .MuiOutlinedInput-root": {
                 borderRadius: 2,
@@ -344,31 +333,35 @@ export function TeacherList(): ReactElement {
               },
             }}
           />
-        </Box>
+          <Select
+            size="small"
+            value={status}
+            displayEmpty
+            onChange={(event) => {
+              setStatus(event.target.value);
+            }}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="ALL">Tất cả trạng thái</MenuItem>
+            <MenuItem value="ACTIVE">Đang hoạt động</MenuItem>
+            <MenuItem value="INACTIVE">Ngừng hoạt động</MenuItem>
+          </Select>
+          <FilterActions onSearch={applyFilters} onClear={clearFilters} hasFilters={Boolean(search.trim()) || status !== "ALL" || Boolean(appliedSearch) || appliedStatus !== "ALL"} isLoading={isLoading} />
+        </Stack>
       </Paper>
 
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-          overflow: "hidden",
-          bgcolor: "background.paper",
-        }}
-      >
-        <BaseTable
-          columns={columns}
-          rows={tableData}
-          totalRows={data?.total || 0}
-          page={page}
-          pageSize={limit}
-          isLoading={isLoading}
-          onPageChange={setPageNumber}
-          onPageSizeChange={setPageSize}
-          error={error}
-        />
-      </Paper>
+      <BaseTable
+        columns={getColumns()}
+        rows={tableData}
+        totalRows={data?.total || 0}
+        page={page}
+        pageSize={pageSize}
+        isLoading={isLoading}
+        onPageChange={setPageNumber}
+        onPageSizeChange={setPageSize}
+        error={error}
+        onRetry={refresh}
+      />
 
       <FormDialog
         open={openDialog}
@@ -378,13 +371,11 @@ export function TeacherList(): ReactElement {
           setEditingId(null);
           setEditingTeacher(null);
         }}
-        onSubmit={async () => {
-          const form = document.querySelector("form") as HTMLFormElement;
-          form?.requestSubmit();
-        }}
+        formId="teacher-form"
         isLoading={isSubmitting}
       >
         <TeacherForm
+          formId="teacher-form"
           key={editingId ?? "create"}
           defaultValues={editingTeacher ?? undefined}
           onSubmit={handleSubmit}
@@ -393,8 +384,8 @@ export function TeacherList(): ReactElement {
 
       <ConfirmDialog
         open={!!deleteId}
-        title="Xóa giáo viên"
-        message="Bạn có chắc chắn muốn xóa giáo viên này không?"
+        title="Ngừng hoạt động giáo viên"
+        message="Giáo viên sẽ được giữ lại để bảo toàn lịch sử và chuyển sang trạng thái ngừng hoạt động. Tiếp tục?"
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteId(null)}
         isLoading={isSubmitting}

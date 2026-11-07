@@ -19,38 +19,41 @@ import type { ReactElement } from "react";
 type TeacherFormData = z.infer<typeof teacherCreateSchema>;
 
 export interface TeacherFormProps {
+  formId?: string;
   onSubmit: (data: TeacherFormData) => void | Promise<void>;
   defaultValues?: Partial<TeacherFormData>;
 }
 
 export function TeacherForm({
+  formId,
   onSubmit,
   defaultValues,
 }: TeacherFormProps): ReactElement {
   const { control, handleSubmit } = useForm<TeacherFormData>({
     resolver: zodResolver(teacherCreateSchema),
     defaultValues: {
-      code: defaultValues?.code ?? "",
+      fullName: defaultValues?.fullName ?? "",
       phone: defaultValues?.phone ?? "",
-      email: defaultValues?.email ?? "",
       bankAccount: defaultValues?.bankAccount ?? "",
       specialty: defaultValues?.specialty ?? "",
+      commissionPercent: defaultValues?.commissionPercent ?? 0,
       status: defaultValues?.status ?? "ACTIVE",
     },
   });
 
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+    <Box component="form" id={formId} onSubmit={handleSubmit(onSubmit)}>
       <Stack spacing={2.5}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
           <Controller
-            name="code"
+            name="fullName"
             control={control}
             render={({ field, fieldState: { error } }) => (
               <TextField
                 {...field}
-                label="Mã giáo viên"
-                placeholder="VD: GV001"
+                label="Họ và tên"
+                placeholder="VD: Nguyễn Văn A"
+                autoFocus
                 error={!!error}
                 helperText={error?.message}
                 fullWidth
@@ -75,23 +78,6 @@ export function TeacherForm({
             )}
           />
         </Stack>
-
-        <Controller
-          name="email"
-          control={control}
-          render={({ field, fieldState: { error } }) => (
-            <TextField
-              {...field}
-              label="Email"
-              type="email"
-              placeholder="VD: giaovien@example.com"
-              error={!!error}
-              helperText={error?.message}
-              fullWidth
-              size="small"
-            />
-          )}
-        />
 
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
           <Controller
@@ -126,6 +112,24 @@ export function TeacherForm({
             )}
           />
         </Stack>
+
+        <Controller
+          name="commissionPercent"
+          control={control}
+          render={({ field, fieldState: { error } }) => (
+            <TextField
+              {...field}
+              label="Tỷ lệ trích (%)"
+              type="number"
+              inputProps={{ min: 0, max: 100, step: 0.01 }}
+              error={!!error}
+              helperText={error?.message ?? "Tỷ lệ dùng khi tính báo cáo tiền đã thu"}
+              fullWidth
+              size="small"
+              onChange={(event) => field.onChange(Number(event.target.value))}
+            />
+          )}
+        />
 
         <Controller
           name="status"

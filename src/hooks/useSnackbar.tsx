@@ -23,9 +23,22 @@ export function SnackbarComponent({
   autoHideDuration,
 }: SnackbarComponentProps): ReactElement {
   return (
-    <MuiSnackbar open={open} autoHideDuration={autoHideDuration} onClose={onClose}>
-      <Alert onClose={onClose} severity={severity} sx={{ width: "100%" }}>
-        {message}
+    <MuiSnackbar
+      open={open}
+      autoHideDuration={autoHideDuration}
+      onClose={onClose}
+      anchorOrigin={{
+        vertical: "bottom",
+        horizontal: "right",
+      }}
+    >
+      <Alert
+        severity={severity}
+        onClose={onClose}
+        variant="filled"
+        sx={{ width: "100%" }}
+      >
+        {message ?? ""}
       </Alert>
     </MuiSnackbar>
   );

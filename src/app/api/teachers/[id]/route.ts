@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiError, apiSuccess, handleApiError } from "@/lib/api";
+import { requireApiUser } from "@/lib/api-auth";
 import { teacherUpdateSchema } from "@/modules/teacher/schemas/teacher.schema";
 import { getTeacherById, updateTeacher, deleteTeacher } from "@/modules/teacher/services/teacher.service";
 
@@ -7,38 +8,47 @@ type Params = Promise<{
   id: string;
 }>;
 
-export async function GET(request: NextRequest, { params }: { params: Params }) {
+export async function GET(_request: NextRequest, { params }: { params: Params }) {
   try {
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
     const { id } = await params;
     const teacher = await getTeacherById(id);
     if (!teacher) {
-      return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
+      return apiError("NOT_FOUND", "Teacher not found", 404);
     }
-    return NextResponse.json(teacher);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiSuccess(teacher);
+  } catch (error: unknown) {
+    return handleApiError(error, "Failed to fetch teacher");
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Params }) {
+export async function PATCH(request: NextRequest, { params }: { params: Params }) {
   try {
+    const user = await requireApiUser();
+    if (user instanceof Response) return user;
     const { id } = await params;
     const body = await request.json();
     const data = teacherUpdateSchema.parse(body);
 
     const teacher = await updateTeacher(id, data);
-    return NextResponse.json(teacher);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiSuccess(teacher);
+  } catch (error: unknown) {
+    return handleApiError(error, "Failed to update teacher");
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Params }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Params }) {
   try {
+    const user = await requireApiUser();
+    if (user instanceof Response) {
+      return user;
+    }
+
     const { id } = await params;
     const teacher = await deleteTeacher(id);
-    return NextResponse.json(teacher);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiSuccess(teacher);
+  } catch (error: unknown) {
+    return handleApiError(error, "Failed to delete teacher");
   }
 }

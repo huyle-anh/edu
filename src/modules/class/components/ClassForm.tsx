@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  TextField,
   Stack,
   Select,
   MenuItem,
@@ -13,14 +12,18 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { classCreateSchema } from "@/modules/class/schemas/class.schema";
 import type { z } from "zod";
-import type { ReactElement } from "react";
+import { type ReactElement } from "react";
+import { DatePickerField } from "@/components/shared/forms/DatePickerField";
+import { AppTextField } from "@/components/shared/forms/AppTextField";
 
 type ClassFormData = z.infer<typeof classCreateSchema>;
+
+type ClassFormDefaultValues = Partial<ClassFormData> & {};
 
 export interface ClassFormProps {
   formId?: string;
   onSubmit: (data: ClassFormData) => void | Promise<void>;
-  defaultValues?: Partial<ClassFormData>;
+  defaultValues?: ClassFormDefaultValues;
 }
 
 export function ClassForm({
@@ -28,104 +31,107 @@ export function ClassForm({
   onSubmit,
   defaultValues,
 }: ClassFormProps): ReactElement {
+  const isEditing = Boolean(defaultValues?.code);
+  const statusOptions = isEditing
+    ? {
+        DRAFT: ["DRAFT", "ACTIVE", "CANCELLED"],
+        ACTIVE: ["ACTIVE", "COMPLETED", "CANCELLED"],
+        COMPLETED: ["COMPLETED"],
+        CANCELLED: ["CANCELLED"],
+      }[defaultValues?.status ?? "DRAFT"]
+    : ["DRAFT"];
+  const statusLabels: Record<string, string> = {
+    DRAFT: "Nháp",
+    ACTIVE: "Hoạt động",
+    COMPLETED: "Hoàn thành",
+    CANCELLED: "Đã hủy",
+  };
+
   const { control, handleSubmit } = useForm<ClassFormData>({
     resolver: zodResolver(classCreateSchema),
     defaultValues: {
       code: defaultValues?.code ?? "",
       name: defaultValues?.name ?? "",
-      tuitionFee: defaultValues?.tuitionFee ?? 0,
-      totalSessions: defaultValues?.totalSessions ?? 0,
-      maxStudents: defaultValues?.maxStudents ?? 30,
+      startDate: defaultValues?.startDate ?? undefined,
+      endDate: defaultValues?.endDate ?? undefined,
       status: defaultValues?.status ?? "DRAFT",
     },
   });
 
+  const toIsoDateTime = (value: string) =>
+    value ? new Date(`${value}T00:00:00.000Z`).toISOString() : undefined;
+
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)}>
       <Stack spacing={2}>
-        <Controller
-          name="code"
-          control={control}
-          render={({ field, fieldState: { error } }) => (
-            <TextField
-              {...field}
-              label="Mã lớp"
-              error={!!error}
-              helperText={error?.message}
-              fullWidth
-              placeholder="VD: C001"
-            />
-          )}
-        />
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+          <Controller
+            name="code"
+            control={control}
+            render={({ field, fieldState: { error } }) => (
+              <AppTextField
+                {...field}
+                label="Mã lớp"
+                error={!!error}
+                helperText={
+                  error?.message ??
+                  (isEditing
+                    ? "Mã lớp không thể thay đổi khi chỉnh sửa"
+                    : "Chỉ dùng chữ cái a-z, số và dấu -, ví dụ: ENG-001")
+                }
+                fullWidth
+                required={!isEditing}
+                placeholder="VD: ENG-001"
+                inputProps={{ maxLength: 50, pattern: "[A-Za-z0-9-]+" }}
+                disabled={isEditing}
+                autoFocus
+              />
+            )}
+          />
+          <Controller
+            name="name"
+            control={control}
+            render={({ field, fieldState: { error } }) => (
+              <AppTextField
+                {...field}
+                label="Tên lớp"
+                error={!!error}
+                helperText={error?.message ?? "Nhập tên lớp dễ nhận biết"}
+                fullWidth
+                required
+                placeholder="VD: Toán 101"
+              />
+            )}
+          />
+        </Stack>
 
-        <Controller
-          name="name"
-          control={control}
-          render={({ field, fieldState: { error } }) => (
-            <TextField
-              {...field}
-              label="Tên lớp"
-              error={!!error}
-              helperText={error?.message}
-              fullWidth
-              placeholder="VD: Toán 101"
-            />
-          )}
-        />
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+          <Controller
+            name="startDate"
+            control={control}
+            render={({ field, fieldState: { error } }) => (
+              <DatePickerField
+                label="Ngày bắt đầu"
+                value={field.value}
+                onChange={(value) => field.onChange(toIsoDateTime(value))}
+                textFieldProps={{ error: !!error, helperText: error?.message }}
+              />
+            )}
+          />
 
-        <Controller
-          name="tuitionFee"
-          control={control}
-          render={({ field, fieldState: { error } }) => (
-            <TextField
-              {...field}
-              label="Học phí"
-              type="number"
-              error={!!error}
-              helperText={error?.message}
-              fullWidth
-              onChange={(event) => {
-                field.onChange(Number(event.target.value || 0));
-              }}
-            />
-          )}
-        />
-
-        <Controller
-          name="totalSessions"
-          control={control}
-          render={({ field, fieldState: { error } }) => (
-            <TextField
-              {...field}
-              label="Tổng số buổi"
-              type="number"
-              error={!!error}
-              helperText={error?.message}
-              fullWidth
-              onChange={(event) => {
-                field.onChange(Number(event.target.value || 0));
-              }}
-            />
-          )}
-        />
-
-        <Controller
-          name="maxStudents"
-          control={control}
-          render={({ field, fieldState: { error } }) => (
-            <TextField
-              {...field}
-              label="Sĩ số tối đa"
-              type="number"
-              error={!!error}
-              helperText={error?.message}
-              fullWidth
-              onChange={(event) => {
-                field.onChange(Number(event.target.value || 0));
-              }}
-            />
-          )}
-        />
+          <Controller
+            name="endDate"
+            control={control}
+            render={({ field, fieldState: { error } }) => (
+              <DatePickerField
+                label="Ngày kết thúc"
+                value={field.value}
+                onChange={(value) => field.onChange(toIsoDateTime(value))}
+                textFieldProps={{ error: !!error, helperText: error?.message }}
+              />
+            )}
+          />
+        </Stack>
 
         <Controller
           name="status"
@@ -134,10 +140,11 @@ export function ClassForm({
             <FormControl error={!!error} fullWidth>
               <InputLabel>Trạng thái</InputLabel>
               <Select {...field} label="Trạng thái">
-                <MenuItem value="DRAFT">Nháp</MenuItem>
-                <MenuItem value="ACTIVE">Hoạt động</MenuItem>
-                <MenuItem value="COMPLETED">Hoàn thành</MenuItem>
-                <MenuItem value="CANCELLED">Đã hủy</MenuItem>
+                {statusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    {statusLabels[status]}
+                  </MenuItem>
+                ))}
               </Select>
               <FormHelperText>{error?.message}</FormHelperText>
             </FormControl>

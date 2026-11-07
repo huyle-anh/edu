@@ -45,7 +45,6 @@ export async function loginAction(
       id: authResult.user.id,
       email: authResult.user.email,
       fullName: authResult.user.fullName,
-      role: authResult.user.role,
     },
     authResult.rememberMe,
   );

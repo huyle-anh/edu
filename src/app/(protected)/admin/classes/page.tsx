@@ -5,11 +5,5 @@ import type { ReactElement } from "react";
 
 export default async function ClassesPage(): Promise<ReactElement> {
   await requireAuth();
-
-  return (
-    <div style={{ padding: "20px" }}>
-      <h1>Class Management</h1>
-      <ClassList />
-    </div>
-  );
+  return <ClassList />;
 }

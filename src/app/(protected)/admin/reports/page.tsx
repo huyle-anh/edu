@@ -1,10 +1,11 @@
-import { Metadata } from "next";
-import { ReportingDashboard } from "@/modules/finance/reporting/ReportingDashboard";
+import type { ReactElement } from "react";
+import type { Metadata } from "next";
+import { requireAuth } from "@/lib/auth";
+import { ClassTuitionReportPage } from "@/modules/finance/reports/components/ClassTuitionReportPage";
 
-export const metadata: Metadata = {
-  title: "Financial Reports | Classroom Rental",
-};
+export const metadata: Metadata = { title: "Báo cáo" };
 
-export default function ReportsPage() {
-  return <ReportingDashboard />;
+export default async function ReportsPage(): Promise<ReactElement> {
+  await requireAuth();
+  return <ClassTuitionReportPage />;
 }

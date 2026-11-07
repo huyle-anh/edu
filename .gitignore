@@ -7,3 +7,8 @@ out
 coverage
 dist
 *.log
+
+
+.next/
+*.tsbuildinfo
+.vercel

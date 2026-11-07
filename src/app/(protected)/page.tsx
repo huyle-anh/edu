@@ -1,10 +1,7 @@
-import type { ReactElement } from "react";
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
-import { HomePageClient } from "@/modules/dashboard/components/HomePageClient";
-import type { SessionUser } from "@/types/auth";
 
-export default async function HomePage(): Promise<ReactElement> {
-  const user: SessionUser = await requireAuth();
-
-  return <HomePageClient user={user} />;
+export default async function HomePage(): Promise<never> {
+  const user = await requireAuth();
+  redirect(user.teacherId ? "/teacher/attendance" : "/admin");
 }

@@ -3,27 +3,31 @@
 import {
   Box,
   Stack,
-  TextField,
   Button,
   Chip,
   Paper,
-  Typography,
   InputAdornment,
+  MenuItem,
+  Select,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
-import ClassIcon from "@mui/icons-material/Class";
 import { GridColDef } from "@mui/x-data-grid";
-import { useState, useCallback } from "react";
-import { BaseTable } from "@/components/BaseTable";
-import { FormDialog } from "@/components/FormDialog";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useState, useCallback, useEffect } from "react";
+import { BaseTable } from "@/components/shared/tables/BaseTable";
+import { FilterActions } from "@/components/shared/FilterActions";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { FormDialog } from "@/components/shared/dialogs/FormDialog";
+import { ConfirmDialog } from "@/components/shared/dialogs/ConfirmDialog";
 import { useList } from "@/hooks/useList";
 import { useSnackbar } from "@/hooks/useSnackbar";
 import { ClassForm } from "./ClassForm";
 import type { ReactElement } from "react";
 import type { z } from "zod";
 import { classCreateSchema } from "@/modules/class/schemas/class.schema";
+import Link from "next/link";
+import { extractApiErrorMessage } from "@/lib/api-client";
+import { AppTextField } from "@/components/shared/forms/AppTextField";
 
 type ClassFormData = z.infer<typeof classCreateSchema>;
 
@@ -31,21 +35,25 @@ export interface Class {
   id: string;
   code: string;
   name: string;
-  tuitionFee: number;
-  totalSessions: number;
-  maxStudents: number;
+  startDate?: string | null;
+  endDate?: string | null;
   status: "ACTIVE" | "DRAFT" | "COMPLETED" | "CANCELLED";
+  _count?: {
+    students: number;
+    schedules: number;
+    classSubjects: number;
+    tuitionFees: number;
+  };
+  teacherNames?: string[];
 }
 
 type ClassRow = Class & {
   _onEdit?: (cls: Class) => void;
   _onDelete?: (cls: Class) => void;
+  _onRestore?: (cls: Class) => void;
 };
 
-const formatCurrency = (value?: number | null): string =>
-  new Intl.NumberFormat("vi-VN").format(value ?? 0);
-
-const columns: GridColDef<ClassRow>[] = [
+const getColumns = (): GridColDef<ClassRow>[] => [
   {
     field: "code",
     headerName: "Mã lớp",
@@ -59,26 +67,28 @@ const columns: GridColDef<ClassRow>[] = [
     flex: 1,
   },
   {
-    field: "tuitionFee",
-    headerName: "Học phí",
-    minWidth: 130,
-    align: "right",
-    headerAlign: "right",
-    valueFormatter: (value) => `${formatCurrency(Number(value))} đ`,
+    field: "teacherNames",
+    headerName: "Giáo viên",
+    minWidth: 180,
+    flex: 0.9,
+    sortable: false,
+    valueGetter: (_value, row) => row.teacherNames?.join(", ") || "Chưa phân công",
   },
   {
-    field: "totalSessions",
-    headerName: "Số buổi",
-    minWidth: 100,
+    field: "_count.students",
+    headerName: "Học viên",
+    minWidth: 95,
     align: "center",
     headerAlign: "center",
+    valueGetter: (_value, row) => row._count?.students ?? 0,
   },
   {
-    field: "maxStudents",
-    headerName: "Sĩ số",
-    minWidth: 100,
+    field: "_count.schedules",
+    headerName: "Lịch học",
+    minWidth: 90,
     align: "center",
     headerAlign: "center",
+    valueGetter: (_value, row) => row._count?.schedules ?? 0,
   },
   {
     field: "status",
@@ -134,7 +144,7 @@ const columns: GridColDef<ClassRow>[] = [
   {
     field: "actions",
     headerName: "Thao tác",
-    minWidth: 150,
+    minWidth: 300,
     sortable: false,
     filterable: false,
     disableColumnMenu: true,
@@ -153,13 +163,22 @@ const columns: GridColDef<ClassRow>[] = [
       >
         <Button
           size="small"
-          variant="contained"
+          component={Link}
+          href={`/admin/classes/${params.row.id}`}
+          variant="outlined"
+          sx={{
+            minWidth: 64,
+          }}
+        >
+          Chi tiết
+        </Button>
+
+        <Button
+          size="small"
+          variant="outlined"
           onClick={() => params.row._onEdit?.(params.row)}
           sx={{
-            minWidth: 56,
-            height: 30,
-            borderRadius: 1.5,
-            textTransform: "none",
+            minWidth: 64,
           }}
         >
           Sửa
@@ -167,18 +186,41 @@ const columns: GridColDef<ClassRow>[] = [
 
         <Button
           size="small"
-          variant="contained"
+          variant="outlined"
           color="error"
           onClick={() => params.row._onDelete?.(params.row)}
+          disabled={
+            params.row.status === "COMPLETED" ||
+            params.row.status === "CANCELLED" ||
+            Boolean(
+              params.row._count &&
+                (params.row._count.students > 0 ||
+                  params.row._count.schedules > 0 ||
+                  params.row._count.classSubjects > 0 ||
+                  params.row._count.tuitionFees > 0),
+            )
+          }
+          title="Chỉ đóng được lớp chưa có dữ liệu liên quan"
           sx={{
-            minWidth: 56,
-            height: 30,
-            borderRadius: 1.5,
-            textTransform: "none",
+            minWidth: 64,
           }}
         >
-          Xóa
+          Đóng lớp
         </Button>
+
+        {params.row.status === "CANCELLED" && (
+          <Button
+            size="small"
+            variant="outlined"
+            color="success"
+            onClick={() => params.row._onRestore?.(params.row)}
+            sx={{
+              minWidth: 80,
+            }}
+          >
+            Khôi phục
+          </Button>
+        )}
       </Stack>
     ),
   },
@@ -186,21 +228,40 @@ const columns: GridColDef<ClassRow>[] = [
 
 export function ClassList(): ReactElement {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [appliedStatus, setAppliedStatus] = useState("");
 
   const {
     data,
     isLoading,
     error,
     page,
-    limit,
+    pageSize,
     setPageNumber,
     setPageSize,
     refresh,
-  } = useList<Class>("/api/classes", { limit: 10, search });
+  } = useList<Class>("/api/classes", {
+    pageSize: 10,
+    search: debouncedSearch,
+    status: appliedStatus || undefined,
+  });
+
+  useEffect(() => {
+    setPageNumber(1);
+  }, [debouncedSearch, appliedStatus, setPageNumber]);
+
+  const submitSearch = useCallback(() => {
+    setDebouncedSearch(search.trim());
+    setAppliedStatus(status);
+    setPageNumber(1);
+  }, [search, status, setPageNumber]);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Class | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Class | null>(null);
+  const [completionData, setCompletionData] = useState<ClassFormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { showSuccess, showError, Snackbar } = useSnackbar();
@@ -216,7 +277,11 @@ export function ClassList(): ReactElement {
   }, []);
 
   const handleDelete = useCallback((cls: Class) => {
-    setDeleteId(cls.id);
+    setDeleteTarget(cls);
+  }, []);
+
+  const handleRestore = useCallback((cls: Class) => {
+    setRestoreTarget(cls);
   }, []);
 
   const handleCloseDialog = useCallback(() => {
@@ -227,30 +292,56 @@ export function ClassList(): ReactElement {
   }, [isSubmitting]);
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!deleteId) return;
+    if (!deleteTarget) return;
 
     try {
       setIsSubmitting(true);
 
-      const response = await fetch(`/api/classes/${deleteId}`, {
+      const response = await fetch(`/api/classes/${deleteTarget.id}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
-        throw new Error("Xóa lớp học thất bại");
+        throw new Error(await extractApiErrorMessage(response, "Đóng lớp học thất bại"));
       }
 
-      showSuccess("Đã xóa lớp học thành công");
-      setDeleteId(null);
+      showSuccess("Đã đóng lớp và giữ lại lịch sử");
+      setDeleteTarget(null);
       await refresh();
     } catch (err) {
-      showError(err instanceof Error ? err.message : "Có lỗi khi xóa lớp học");
+      showError(err instanceof Error ? err.message : "Có lỗi khi đóng lớp học");
     } finally {
       setIsSubmitting(false);
     }
-  }, [deleteId, refresh, showSuccess, showError]);
+  }, [deleteTarget, refresh, showSuccess, showError]);
 
-  const handleSubmit = useCallback(
+  const handleConfirmRestore = useCallback(async () => {
+    if (!restoreTarget) return;
+
+    try {
+      setIsSubmitting(true);
+
+      const response = await fetch(`/api/classes/${restoreTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ACTIVE" }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await extractApiErrorMessage(response, "Khôi phục lớp học thất bại"));
+      }
+
+      showSuccess("Đã khôi phục lớp và chuyển sang trạng thái hoạt động");
+      setRestoreTarget(null);
+      await refresh();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Có lỗi khi khôi phục lớp học");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [restoreTarget, refresh, showSuccess, showError]);
+
+  const persistClass = useCallback(
     async (formData: ClassFormData) => {
       try {
         setIsSubmitting(true);
@@ -260,16 +351,14 @@ export function ClassList(): ReactElement {
         const response = await fetch(
           isEdit ? `/api/classes/${editingClass.id}` : "/api/classes",
           {
-            method: isEdit ? "PUT" : "POST",
+            method: isEdit ? "PATCH" : "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(formData),
           },
         );
 
         if (!response.ok) {
-          throw new Error(
-            isEdit ? "Cập nhật lớp học thất bại" : "Thêm lớp học thất bại",
-          );
+          throw new Error(await extractApiErrorMessage(response, isEdit ? "Cập nhật lớp học thất bại" : "Thêm lớp học thất bại"));
         }
 
         showSuccess(
@@ -292,79 +381,44 @@ export function ClassList(): ReactElement {
     [editingClass, refresh, showSuccess, showError],
   );
 
+  const handleSubmit = useCallback(
+    async (formData: ClassFormData) => {
+      if (editingClass?.status === "ACTIVE" && formData.status === "COMPLETED") {
+        setCompletionData(formData);
+        return;
+      }
+      await persistClass(formData);
+    },
+    [editingClass, persistClass],
+  );
+
   const tableData = (data?.items || []).map((row) => ({
     ...row,
-    tuitionFee: row.tuitionFee ?? 0,
-    totalSessions: row.totalSessions ?? 0,
-    maxStudents: row.maxStudents ?? 0,
     _onEdit: handleEdit,
     _onDelete: handleDelete,
+    _onRestore: handleRestore,
   }));
 
   return (
-    <Stack spacing={2.5}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.paper",
-        }}
-      >
+    <Stack spacing={{ xs: 2, md: 3 }}>
+      <PageHeader
+        title="Quản lý lớp học"
+        description="Tập trung thông tin lớp, giáo viên, học viên và lịch học."
+        actions={<Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>Thêm lớp học</Button>}
+      />
+
+      <Paper sx={{ p: { xs: 2, md: 2.5 } }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
-          spacing={2}
-          alignItems={{ xs: "stretch", md: "center" }}
-          justifyContent="space-between"
+          spacing={1.5}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-              }}
-            >
-              <ClassIcon />
-            </Box>
-
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Quản lý lớp học
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Danh sách lớp học, học phí, số buổi và trạng thái
-              </Typography>
-            </Box>
-          </Box>
-
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
-            sx={{
-              borderRadius: 2,
-              px: 2.5,
-              height: 40,
-              whiteSpace: "nowrap",
-            }}
-          >
-            Thêm lớp học
-          </Button>
-        </Stack>
-
-        <Box sx={{ mt: 2.5 }}>
-          <TextField
+          <AppTextField
             placeholder="Tìm theo mã lớp hoặc tên lớp..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitSearch();
+            }}
             size="small"
             fullWidth
             InputProps={{
@@ -375,49 +429,53 @@ export function ClassList(): ReactElement {
               ),
             }}
             sx={{
-              maxWidth: 420,
+              flex: 1,
               "& .MuiOutlinedInput-root": {
                 borderRadius: 2,
                 bgcolor: "background.default",
               },
             }}
           />
-        </Box>
+          <Select
+            size="small"
+            value={status}
+            displayEmpty
+            onChange={(event) => setStatus(event.target.value)}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">Tất cả trạng thái</MenuItem>
+            <MenuItem value="ACTIVE">Hoạt động</MenuItem>
+            <MenuItem value="DRAFT">Nháp</MenuItem>
+            <MenuItem value="COMPLETED">Hoàn thành</MenuItem>
+            <MenuItem value="CANCELLED">Đã hủy</MenuItem>
+          </Select>
+          <FilterActions
+            onSearch={submitSearch}
+            onClear={() => { setSearch(""); setDebouncedSearch(""); setStatus(""); setAppliedStatus(""); setPageNumber(1); }}
+            hasFilters={Boolean(search.trim() || debouncedSearch || status || appliedStatus)}
+            isLoading={isLoading}
+          />
+        </Stack>
       </Paper>
 
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-          overflow: "hidden",
-          bgcolor: "background.paper",
-        }}
-      >
-        <BaseTable
-          columns={columns}
-          rows={tableData}
-          totalRows={data?.total || 0}
-          page={page}
-          pageSize={limit}
-          isLoading={isLoading}
-          onPageChange={setPageNumber}
-          onPageSizeChange={setPageSize}
-          error={error}
-        />
-      </Paper>
+      <BaseTable
+        columns={getColumns()}
+        rows={tableData}
+        totalRows={data?.total || 0}
+        page={page}
+        pageSize={pageSize}
+        isLoading={isLoading}
+        onPageChange={setPageNumber}
+        onPageSizeChange={setPageSize}
+        error={error}
+        onRetry={refresh}
+      />
 
       <FormDialog
         open={openDialog}
         title={editingClass ? "Sửa lớp học" : "Thêm lớp học"}
         onClose={handleCloseDialog}
-        onSubmit={async () => {
-          const form = document.querySelector(
-            "#class-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        }}
+        formId="class-form"
         isLoading={isSubmitting}
       >
         <ClassForm
@@ -429,9 +487,8 @@ export function ClassList(): ReactElement {
               ? {
                   code: editingClass.code ?? "",
                   name: editingClass.name ?? "",
-                  tuitionFee: editingClass.tuitionFee ?? 0,
-                  totalSessions: editingClass.totalSessions ?? 0,
-                  maxStudents: editingClass.maxStudents ?? 0,
+                  startDate: editingClass.startDate ?? undefined,
+                  endDate: editingClass.endDate ?? undefined,
                   status: editingClass.status ?? "DRAFT",
                 }
               : undefined
@@ -440,12 +497,41 @@ export function ClassList(): ReactElement {
       </FormDialog>
 
       <ConfirmDialog
-        open={!!deleteId}
-        title="Xóa lớp học"
-        message="Bạn có chắc chắn muốn xóa lớp học này không?"
+        open={!!deleteTarget}
+        title="Đóng lớp học"
+        message={`Lớp ${deleteTarget?.code ?? "này"} — ${deleteTarget?.name ?? ""} sẽ được giữ lại và chuyển sang trạng thái đã hủy. Chỉ thực hiện được khi lớp chưa có dữ liệu liên quan. Tiếp tục?`}
         onConfirm={handleConfirmDelete}
-        onCancel={() => setDeleteId(null)}
+        onCancel={() => setDeleteTarget(null)}
         isLoading={isSubmitting}
+        confirmLabel="Đóng lớp"
+      />
+
+      <ConfirmDialog
+        open={Boolean(completionData)}
+        title="Hoàn thành lớp học"
+        message="Sau khi hoàn thành, toàn bộ học viên và môn đang hoạt động sẽ chuyển sang trạng thái đã hoàn thành. Thao tác này không thể hoàn tác. Bạn có chắc chắn muốn tiếp tục?"
+        onConfirm={() => {
+          if (completionData) {
+            const data = completionData;
+            setCompletionData(null);
+            void persistClass(data);
+          }
+        }}
+        onCancel={() => setCompletionData(null)}
+        isLoading={isSubmitting}
+        confirmLabel="Hoàn thành lớp"
+        confirmColor="warning"
+      />
+
+      <ConfirmDialog
+        open={Boolean(restoreTarget)}
+        title="Khôi phục lớp học"
+        message={`Lớp ${restoreTarget?.code ?? "này"} — ${restoreTarget?.name ?? ""} sẽ chuyển từ đã hủy sang hoạt động. Sau đó lớp có thể tiếp tục quản lý học viên, lịch học và học phí theo quy định. Bạn có chắc chắn muốn tiếp tục?`}
+        onConfirm={handleConfirmRestore}
+        onCancel={() => setRestoreTarget(null)}
+        isLoading={isSubmitting}
+        confirmLabel="Khôi phục lớp"
+        confirmColor="success"
       />
 
       {Snackbar}

@@ -2,15 +2,18 @@
 
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
-import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import ClassOutlinedIcon from "@mui/icons-material/ClassOutlined";
-import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import ReceiptOutlinedIcon from "@mui/icons-material/ReceiptOutlined";
-import PaymentOutlinedIcon from "@mui/icons-material/PaymentOutlined";
-import AttachMoneyOutlinedIcon from "@mui/icons-material/AttachMoneyOutlined";
-import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
+import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
+import CallSplitOutlinedIcon from "@mui/icons-material/CallSplitOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
+import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 
 import {
   Box,
@@ -19,155 +22,266 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 
-import type { Role } from "@prisma/client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactElement } from "react";
-
 type SidebarItem = {
   label: string;
   href: string;
   icon: ReactElement;
-  roles: Role[];
+  section: "Tổng quan" | "Đào tạo" | "Tài chính" | "Hệ thống";
 };
 
-const items: SidebarItem[] = [
+export const adminNavigationItems: SidebarItem[] = [
   {
     label: "Tổng quan",
-    href: "/",
+    href: "/admin",
     icon: <HomeOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN", "STAFF", "TEACHER"],
-  },
-  {
-    label: "Quản lý phòng",
-    href: "/admin/rooms",
-    icon: <MeetingRoomOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
-  },
-  {
-    label: "Giáo viên",
-    href: "/admin/teachers",
-    icon: <SchoolOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    section: "Tổng quan",
   },
   {
     label: "Học viên",
     href: "/admin/students",
     icon: <GroupOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    section: "Đào tạo",
   },
   {
     label: "Lớp học",
     href: "/admin/classes",
     icon: <ClassOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    section: "Đào tạo",
   },
   {
-    label: "Lịch học",
-    href: "/admin/schedules",
-    icon: <ScheduleOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    label: "Điểm danh",
+    href: "/teacher/attendance",
+    icon: <FactCheckOutlinedIcon fontSize="small" />,
+    section: "Đào tạo",
   },
   {
-    label: "Học phí",
-    href: "/admin/student-fees",
-    icon: <ReceiptOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    label: "Lịch điểm danh",
+    href: "/teacher/attendance/calendar",
+    icon: <CalendarMonthOutlinedIcon fontSize="small" />,
+    section: "Đào tạo",
   },
   {
-    label: "Thanh toán",
-    href: "/admin/payments",
-    icon: <PaymentOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    label: "Giáo viên",
+    href: "/admin/teachers",
+    icon: <SchoolOutlinedIcon fontSize="small" />,
+    section: "Đào tạo",
+  },
+  {
+    label: "Môn học",
+    href: "/admin/subjects",
+    icon: <ClassOutlinedIcon fontSize="small" />,
+    section: "Đào tạo",
+  },
+  {
+    label: "Các khoản học phí",
+    href: "/admin/tuition-fees",
+    icon: <AccountBalanceWalletOutlinedIcon fontSize="small" />,
+    section: "Tài chính",
+  },
+  {
+    label: "Thu học phí",
+    href: "/admin/tuition-fees/payment",
+    icon: <PaymentsOutlinedIcon fontSize="small" />,
+    section: "Tài chính",
+  },
+  {
+    label: "Thông báo & đợt thu",
+    href: "/admin/tuition-fees/notice-management",
+    icon: <CallSplitOutlinedIcon fontSize="small" />,
+    section: "Tài chính",
+  },
+  {
+    label: "Lịch sử thanh toán",
+    href: "/admin/tuition-fees/payment-history",
+    icon: <HistoryOutlinedIcon fontSize="small" />,
+    section: "Tài chính",
   },
   {
     label: "Biên lai",
     href: "/admin/receipts",
     icon: <ReceiptOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    section: "Tài chính",
   },
   {
-    label: "Lương giáo viên",
-    href: "/admin/teacher-payroll",
-    icon: <AttachMoneyOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    label: "Đối soát ngân hàng",
+    href: "/admin/bank-reconciliation",
+    icon: <AccountBalanceOutlinedIcon fontSize="small" />,
+    section: "Tài chính",
   },
   {
-    label: "Công nợ",
-    href: "/admin/debt-tracking",
-    icon: <WarningAmberOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
-  },
-  {
-    label: "Báo cáo tài chính",
+    label: "Báo cáo",
     href: "/admin/reports",
     icon: <AssessmentOutlinedIcon fontSize="small" />,
-    roles: ["ADMIN"],
+    section: "Tài chính",
+  },
+  {
+    label: "Tài khoản nhận tiền",
+    href: "/admin/bank-accounts",
+    icon: <AccountBalanceOutlinedIcon fontSize="small" />,
+    section: "Tài chính",
+  },
+  {
+    label: "Người dùng",
+    href: "/admin/users",
+    icon: <ManageAccountsOutlinedIcon fontSize="small" />,
+    section: "Hệ thống",
   },
 ];
 
-type SidebarProps = {
-  role: Role;
+const teacherAttendanceNavigationItem: SidebarItem = {
+  label: "Điểm danh",
+  href: "/teacher/attendance",
+  icon: <FactCheckOutlinedIcon fontSize="small" />,
+  section: "Đào tạo",
 };
 
-export function Sidebar({ role }: SidebarProps): ReactElement {
-  const pathname = usePathname();
+const teacherAttendanceCalendarNavigationItem: SidebarItem = {
+  label: "Lịch điểm danh",
+  href: "/teacher/attendance/calendar",
+  icon: <CalendarMonthOutlinedIcon fontSize="small" />,
+  section: "Đào tạo",
+};
 
-  const visibleItems = items.filter((item) => item.roles.includes(role));
+type SidebarProps = {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+  teacherMode?: boolean;
+};
+
+export function Sidebar({ collapsed = false, onNavigate, teacherMode = false }: SidebarProps): ReactElement {
+  const pathname = usePathname();
+  const navigationItems = teacherMode
+    ? [teacherAttendanceNavigationItem, teacherAttendanceCalendarNavigationItem]
+    : adminNavigationItems;
+  const activeHref = navigationItems
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length)[0]?.href;
 
   return (
     <Box
       sx={{
-        width: 280,
-        height: "100%",
+        width: collapsed ? 76 : 280,
+        height: "100dvh",
+        minHeight: 0,
         bgcolor: "background.paper",
-        borderRight: "1px solid",
-        borderColor: "divider",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        transition: "width 180ms ease",
       }}
     >
       {/* Logo */}
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h6" fontWeight={700} color="primary.main">
-          Trung Tâm Giáo Dục
-        </Typography>
-
-        <Typography variant="body2" color="text.secondary">
-          Hệ thống quản lý lớp học
-        </Typography>
+      <Box sx={{ px: collapsed ? 1.5 : 2.5, py: 2.5 }}>
+        <Stack direction="row" spacing={1.25} alignItems="center" justifyContent={collapsed ? "center" : "flex-start"}>
+          <Box sx={{ width: 38, height: 38, display: "grid", placeItems: "center", flexShrink: 0 }} aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+              <path d="M6 7c8-4 16 1 28 1v6c-11 0-20-5-28 1V7Z" fill="#A7EDD8" />
+              <path d="M6 17c8-5 17 1 28 1v6c-11 0-19-5-28 1v-8Z" fill="#55D5A9" />
+              <path d="M6 27c8-4 17 1 28 1v6c-11 0-19-4-28 1v-8Z" fill="#21B887" />
+            </svg>
+          </Box>
+          <Box sx={{ display: collapsed ? "none" : "block", minWidth: 0 }}>
+            <Typography
+              variant="subtitle1"
+              fontWeight={800}
+              color="text.primary"
+              lineHeight={1.1}
+            >
+              EduCenter
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Quản lý đào tạo
+            </Typography>
+          </Box>
+        </Stack>
       </Box>
 
       <Divider />
 
       {/* Menu */}
-      <List sx={{ px: 1.5, py: 2 }}>
-        {visibleItems.map((item) => {
-          const selected = pathname === item.href;
+      <List
+        sx={{
+          px: collapsed ? 1 : 1.5,
+          py: 2,
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          overscrollBehavior: "contain",
+          scrollbarGutter: "stable",
+        }}
+      >
+        {navigationItems.map((item, index) => {
+          const selected = item.href === activeHref;
+          const previousSection = index > 0 ? navigationItems[index - 1]?.section : null;
 
-          return (
+          const button = (
             <ListItemButton
-              key={item.href}
               component={Link}
               href={item.href}
               selected={selected}
+              onClick={onNavigate}
+              aria-current={selected ? "page" : undefined}
               sx={{
-                borderRadius: 2,
+                position: "relative",
+                borderRadius: 1.5,
                 mb: 0.5,
                 minHeight: 44,
+                px: collapsed ? 1.25 : 1.5,
+                justifyContent: collapsed ? "center" : "flex-start",
+                color: "text.secondary",
+                "& .MuiListItemIcon-root": { color: "inherit" },
+                "&.Mui-selected": {
+                  bgcolor: "primary.light",
+                  color: "primary.dark",
+                  "&:hover": { bgcolor: "primary.light" },
+                },
+                "&:hover": { bgcolor: "action.hover", color: "text.primary" },
               }}
             >
-              <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
-
+              <ListItemIcon sx={{ minWidth: collapsed ? 0 : 36, justifyContent: "center" }}>
+                {item.icon}
+              </ListItemIcon>
               <ListItemText
                 primary={item.label}
+                sx={{ display: collapsed ? "none" : "block" }}
                 primaryTypographyProps={{
-                  fontSize: 14,
-                  fontWeight: selected ? 600 : 400,
+                  fontSize: 13.5,
+                  fontWeight: selected ? 700 : 500,
+                  noWrap: true,
                 }}
               />
             </ListItemButton>
+          );
+
+          return (
+            <Box key={item.href}>
+              {!collapsed && item.section !== "Tổng quan" && item.section !== previousSection && (
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{
+                    display: "block",
+                    px: 1.5,
+                    mt: index === 0 ? 0 : 2.5,
+                    mb: 0.75,
+                    letterSpacing: "0.09em",
+                    fontWeight: 700,
+                  }}
+                >
+                  {item.section}
+                </Typography>
+              )}
+              {collapsed ? <Tooltip title={item.label} placement="right">{button}</Tooltip> : button}
+            </Box>
           );
         })}
       </List>
