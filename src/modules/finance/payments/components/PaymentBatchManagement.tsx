@@ -481,6 +481,15 @@ export function PaymentBatchManagement() {
     setDialogError("");
   }
 
+  function openBatchSplitDialog(batch: PendingBatch) {
+    if (batch.allocations.length < 2) return;
+
+    setSelectedBatchIds([batch.id]);
+    setRestructureMode("SPLIT");
+    setReason("");
+    setDialogError("");
+  }
+
   async function downloadSelectedStudentNotices() {
     if (!selectedStudentIds.length || !selectedStudentBatches.length) return;
     if (selectedStudentOutOfScopeBatches.length) {
@@ -1458,6 +1467,21 @@ export function PaymentBatchManagement() {
                                   flexWrap="wrap"
                                   useFlexGap
                                 >
+                                  <Tooltip
+                                    title={batch.allocations.length >= 2 ? "Tách batch này thành các batch theo từng khoản học phí" : "Batch chỉ có một khoản học phí, không thể tách"}
+                                  >
+                                    <span>
+                                      <Button
+                                        size="small"
+                                        color="warning"
+                                        startIcon={<CallSplitOutlinedIcon />}
+                                        disabled={batch.allocations.length < 2 || busy}
+                                        onClick={() => openBatchSplitDialog(batch)}
+                                      >
+                                        Tách
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
                                   <Button
                                     size="small"
                                     startIcon={<DownloadOutlinedIcon />}
