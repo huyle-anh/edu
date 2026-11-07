@@ -54,15 +54,16 @@ export type NoticePage<T> = {
 };
 
 export type NoticeListFilters = {
-  month: string;
+  months: string[];
   page: number;
   pageSize: number;
   search: string;
   studentId?: string;
-  classId?: string;
+  studentClassId?: string;
 };
 
 export type NoticePdfScope = {
+  months?: string[];
   month?: string;
   classId?: string;
 };
@@ -112,10 +113,10 @@ function buildListQuery(filters: NoticeListFilters) {
     page: String(filters.page),
     pageSize: String(filters.pageSize),
   });
-  if (filters.month) params.set("month", filters.month);
+  if (filters.months.length) params.set("months", filters.months.join(","));
   if (filters.search.trim()) params.set("search", filters.search.trim());
   if (filters.studentId) params.set("studentId", filters.studentId);
-  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.studentClassId) params.set("studentClassId", filters.studentClassId);
   return params;
 }
 
@@ -192,6 +193,7 @@ export async function issueNoticeBatches(input: {
 
 export async function issueClassNoticeBatches(input: {
   classId: string;
+  months?: string[];
   month?: string;
   bankAccountId: string;
   idempotencyKey: string;

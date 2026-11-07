@@ -12,8 +12,24 @@ const schema = z.object({
     }
   }),
   scope: z.object({
+    months: z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)).min(1).max(120).optional(),
     month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
     classId: z.string().uuid().optional(),
+  }).superRefine((scope, ctx) => {
+    if (scope.month && scope.months) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["months"],
+        message: "Chỉ được truyền month hoặc months",
+      });
+    }
+    if (scope.months && new Set(scope.months).size !== scope.months.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["months"],
+        message: "Danh sách kỳ học phí bị trùng",
+      });
+    }
   }).optional(),
 });
 
@@ -29,7 +45,14 @@ export async function POST(request: NextRequest) {
       getAuditContext(request),
       scope
         ? {
-            ...(scope.month
+          ...(scope.months
+            ? {
+                billingPeriods: scope.months.map((value) => ({
+                  billingYear: Number(value.slice(0, 4)),
+                  billingMonth: Number(value.slice(5, 7)),
+                })),
+              }
+            : scope.month
               ? {
                   billingYear: Number(scope.month.slice(0, 4)),
                   billingMonth: Number(scope.month.slice(5, 7)),

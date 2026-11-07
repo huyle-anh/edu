@@ -79,6 +79,7 @@ export class TuitionService {
   static async listFees(params: {
     studentCode?: string;
     classId?: string;
+    studentClassId?: string;
     status?: TuitionFeeStatus;
     statuses?: TuitionFeeStatus[];
     search?: string;
@@ -86,6 +87,7 @@ export class TuitionService {
     billingType?: TuitionFeeBillingType;
     billingYear?: number;
     billingMonth?: number;
+    billingPeriods?: Array<{ billingYear: number; billingMonth: number }>;
     page: number;
     pageSize: number;
   }) {
@@ -147,16 +149,41 @@ export class TuitionService {
           : {}),
       ...(params.billingType ? { billingType: params.billingType } : {}),
       ...(params.unissuedOnly ? { paymentAllocations: { none: {} } } : {}),
-      ...(params.studentCode
+      ...(params.studentCode || params.studentClassId
         ? {
             student: {
-              code: { equals: params.studentCode, mode: "insensitive" },
+              ...(params.studentCode
+                ? {
+                    code: {
+                      equals: params.studentCode,
+                      mode: "insensitive" as const,
+                    },
+                  }
+                : {}),
+              ...(params.studentClassId
+                ? {
+                    enrollments: {
+                      some: {
+                        classId: params.studentClassId,
+                        status: { in: ["ACTIVE", "COMPLETED", "LEFT"] },
+                      },
+                    },
+                  }
+                : {}),
             },
           }
         : {}),
       ...(params.classId ? { classId: params.classId } : {}),
       ...(params.billingYear ? { billingYear: params.billingYear } : {}),
       ...(params.billingMonth ? { billingMonth: params.billingMonth } : {}),
+      ...(params.billingPeriods?.length
+        ? {
+            OR: params.billingPeriods.map((period) => ({
+              billingYear: period.billingYear,
+              billingMonth: period.billingMonth,
+            })),
+          }
+        : {}),
     };
     const [items, total] = await Promise.all([
       prisma.tuitionFee.findMany({

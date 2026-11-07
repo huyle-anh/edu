@@ -76,8 +76,24 @@ export const noticeBatchCreateSchema = z.object({
 export const classNoticeBatchCreateSchema = z.object({
   classId: z.string().uuid(),
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Kỳ học phí không hợp lệ").optional(),
+  months: z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Kỳ học phí không hợp lệ")).min(1).max(120).optional(),
   bankAccountId: z.string().uuid(),
   idempotencyKey: z.string().trim().min(1).max(150),
+}).superRefine((data, ctx) => {
+  if (data.month && data.months) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["months"],
+      message: "Chỉ được truyền month hoặc months",
+    });
+  }
+  if (data.months && new Set(data.months).size !== data.months.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["months"],
+      message: "Danh sách kỳ học phí bị trùng",
+    });
+  }
 });
 
 export const pendingBatchRestructureSchema = z.discriminatedUnion("operation", [

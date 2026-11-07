@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
     if (rawClassId && !z.string().uuid().safeParse(rawClassId).success) {
       return apiError("VALIDATION_ERROR", "Mã lớp không hợp lệ", 422);
     }
+    const rawStudentClassId = params.get("studentClassId");
+    if (rawStudentClassId && !z.string().uuid().safeParse(rawStudentClassId).success) {
+      return apiError("VALIDATION_ERROR", "Mã lớp học viên không hợp lệ", 422);
+    }
     const rawStatus = params.get("status");
     const validStatuses = [...Object.values(TuitionFeeStatus), PARTIAL_FEE_STATUS];
     if (rawStatus && !validStatuses.includes(rawStatus as TuitionFeeStatus)) {
@@ -55,18 +59,37 @@ export async function GET(request: NextRequest) {
     const rawMonth = params.get("month");
     const month = rawMonth ? z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).safeParse(rawMonth) : null;
     if (rawMonth && (!month || !month.success)) return apiError("VALIDATION_ERROR", "Kỳ học phí phải có định dạng YYYY-MM", 400);
-    const billingYear = month?.success ? Number(month.data.slice(0, 4)) : undefined;
-    const billingMonth = month?.success ? Number(month.data.slice(5, 7)) : undefined;
+    const rawMonths = params.get("months");
+    const months = rawMonths !== null
+      ? z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)).min(1).max(120).safeParse(rawMonths.split(","))
+      : null;
+    if (rawMonth && rawMonths !== null) {
+      return apiError("VALIDATION_ERROR", "Chỉ được truyền month hoặc months", 400);
+    }
+    if (rawMonths !== null && (!months?.success || new Set(months.data).size !== months.data.length)) {
+      return apiError("VALIDATION_ERROR", "Danh sách kỳ học phí không hợp lệ hoặc bị trùng", 400);
+    }
+    const billingPeriods = months?.success
+      ? months.data.map((value) => ({
+          billingYear: Number(value.slice(0, 4)),
+          billingMonth: Number(value.slice(5, 7)),
+        }))
+      : month?.success
+        ? [{
+            billingYear: Number(month.data.slice(0, 4)),
+            billingMonth: Number(month.data.slice(5, 7)),
+          }]
+        : undefined;
     const filters = {
       studentCode: params.get("studentCode") || undefined,
       classId: params.get("classId") || undefined,
+      studentClassId: rawStudentClassId || undefined,
       status,
       statuses: statuses as TuitionFeeStatus[] | undefined,
       search: params.get("search") || undefined,
       unissuedOnly: rawUnissuedOnly === "true",
       billingType,
-      billingYear,
-      billingMonth,
+      billingPeriods,
     };
     const isExport = params.get("export") === "csv";
     let result = await TuitionService.listFees({

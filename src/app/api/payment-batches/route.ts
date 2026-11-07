@@ -30,6 +30,10 @@ export async function GET(request: NextRequest) {
     if (rawClassId && !z.string().uuid().safeParse(rawClassId).success) {
       return apiError("VALIDATION_ERROR", "Mã lớp không hợp lệ", 422);
     }
+    const rawStudentClassId = params.get("studentClassId");
+    if (rawStudentClassId && !z.string().uuid().safeParse(rawStudentClassId).success) {
+      return apiError("VALIDATION_ERROR", "Mã lớp học viên không hợp lệ", 422);
+    }
     const rawStudentId = params.get("studentId");
     if (rawStudentId && !z.string().uuid().safeParse(rawStudentId).success) {
       return apiError("VALIDATION_ERROR", "Mã học viên không hợp lệ", 422);
@@ -39,14 +43,35 @@ export async function GET(request: NextRequest) {
     if (rawMonth && (!month || !month.success)) {
       return apiError("VALIDATION_ERROR", "Kỳ học phí phải có định dạng YYYY-MM", 400);
     }
+    const rawMonths = params.get("months");
+    const months = rawMonths !== null
+      ? z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)).min(1).max(120).safeParse(rawMonths.split(","))
+      : null;
+    if (rawMonth && rawMonths !== null) {
+      return apiError("VALIDATION_ERROR", "Chỉ được truyền month hoặc months", 400);
+    }
+    if (rawMonths !== null && (!months?.success || new Set(months.data).size !== months.data.length)) {
+      return apiError("VALIDATION_ERROR", "Danh sách kỳ học phí không hợp lệ hoặc bị trùng", 400);
+    }
+    const billingPeriods = months?.success
+      ? months.data.map((value) => ({
+          billingYear: Number(value.slice(0, 4)),
+          billingMonth: Number(value.slice(5, 7)),
+        }))
+      : month?.success
+        ? [{
+            billingYear: Number(month.data.slice(0, 4)),
+            billingMonth: Number(month.data.slice(5, 7)),
+          }]
+        : undefined;
     return apiSuccess(await listPaymentBatches({
       transactionCode: params.get("transactionCode") || undefined,
       studentCode: params.get("studentCode") || undefined,
       studentId: rawStudentId || undefined,
       search: params.get("search") || undefined,
       classId: rawClassId || undefined,
-      billingYear: month?.success ? Number(month.data.slice(0, 4)) : undefined,
-      billingMonth: month?.success ? Number(month.data.slice(5, 7)) : undefined,
+      studentClassId: rawStudentClassId || undefined,
+      billingPeriods,
       status,
       ...pagination,
     }));

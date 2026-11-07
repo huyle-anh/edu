@@ -119,7 +119,12 @@ export async function generatePaymentBatchNoticesPdf(
   exportedByName: string,
   exportedById: string,
   auditContext?: AuditContext,
-  scope?: { billingYear?: number; billingMonth?: number; classId?: string },
+  scope?: {
+    billingYear?: number;
+    billingMonth?: number;
+    billingPeriods?: Array<{ billingYear: number; billingMonth: number }>;
+    classId?: string;
+  },
 ) {
   const uniqueIds = [...new Set(batchIds)];
   if (uniqueIds.length !== batchIds.length) {
@@ -170,13 +175,22 @@ export async function generatePaymentBatchNoticesPdf(
           "Chỉ có thể gộp PDF của các đợt chuyển khoản đang chờ",
         );
       }
-      if (scope && (scope.billingYear || scope.billingMonth || scope.classId)) {
+      if (
+        scope &&
+        (scope.billingYear || scope.billingMonth || scope.billingPeriods?.length || scope.classId)
+      ) {
         const outOfScopeBatch = batches.find((batch) =>
           batch.allocations.some(({ tuitionFee }) =>
-            (scope.billingYear !== undefined &&
-              tuitionFee.billingYear !== scope.billingYear) ||
-            (scope.billingMonth !== undefined &&
-              tuitionFee.billingMonth !== scope.billingMonth) ||
+            (scope.billingPeriods?.length
+              ? !scope.billingPeriods.some(
+                  (period) =>
+                    tuitionFee.billingYear === period.billingYear &&
+                    tuitionFee.billingMonth === period.billingMonth,
+                )
+              : (scope.billingYear !== undefined &&
+                  tuitionFee.billingYear !== scope.billingYear) ||
+                (scope.billingMonth !== undefined &&
+                  tuitionFee.billingMonth !== scope.billingMonth)) ||
             (scope.classId !== undefined && tuitionFee.classId !== scope.classId),
           ),
         );

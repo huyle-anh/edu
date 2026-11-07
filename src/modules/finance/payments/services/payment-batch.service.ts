@@ -891,7 +891,7 @@ export async function createNoticeBatches(
 
 async function createClassNoticeBatchesForPeriod(
   tx: Prisma.TransactionClient,
-  data: ClassNoticeBatchCreate,
+  data: ClassNoticeBatchCreate & { studentIds: string[] },
   actorId: string,
   auditContext?: AuditContext,
 ) {
@@ -936,7 +936,7 @@ async function createClassNoticeBatchesForPeriod(
 
       const targetFees = await tx.tuitionFee.findMany({
         where: {
-          classId: data.classId,
+          studentId: { in: data.studentIds },
           billingType: "MONTHLY",
           billingYear: year,
           billingMonth: month,
@@ -1128,8 +1128,7 @@ async function createClassNoticeBatchesForPeriod(
           const containsOtherScope = batch.allocations.some((item) => {
             const allocatedFee = feeById.get(item.tuitionFeeId);
             return allocatedFee &&
-              (allocatedFee.classId !== data.classId ||
-                allocatedFee.billingYear !== year ||
+              (allocatedFee.billingYear !== year ||
                 allocatedFee.billingMonth !== month ||
                 allocatedFee.billingType !== "MONTHLY");
           });
@@ -1238,7 +1237,6 @@ async function createClassNoticeBatchesForPeriod(
             batch.allocations.every((allocation) => {
               const allocatedFee = feeById.get(allocation.tuitionFeeId);
               return allocatedFee &&
-                allocatedFee.classId === data.classId &&
                 allocatedFee.billingYear === year &&
                 allocatedFee.billingMonth === month &&
                 allocatedFee.billingType === "MONTHLY";
@@ -1506,28 +1504,58 @@ export async function createClassNoticeBatches(
 ) {
   return prisma.$transaction(
     async (tx) => {
+      const classStudents = await tx.classStudent.findMany({
+        where: {
+          classId: data.classId,
+          status: { in: ["ACTIVE", "COMPLETED", "LEFT"] },
+        },
+        select: { studentId: true },
+      });
+      const studentIds = [...new Set(classStudents.map(({ studentId }) => studentId))];
+      if (!studentIds.length) {
+        throw new ConflictError("Lớp không có học sinh để phát hành thông báo");
+      }
+      const requestedMonths = data.months?.length
+        ? [...new Set(data.months)].sort()
+        : undefined;
+      const feePeriods = await tx.tuitionFee.findMany({
+        where: {
+          studentId: { in: studentIds },
+          billingType: "MONTHLY",
+          status: {
+            in: [
+              TuitionFeeStatus.UNPAID,
+              PARTIAL_FEE_STATUS,
+              TuitionFeeStatus.OVERDUE,
+            ],
+          },
+          ...(data.month
+            ? {
+                billingYear: Number(data.month.slice(0, 4)),
+                billingMonth: Number(data.month.slice(5, 7)),
+              }
+            : requestedMonths
+              ? {
+                  OR: requestedMonths.map((period) => ({
+                    billingYear: Number(period.slice(0, 4)),
+                    billingMonth: Number(period.slice(5, 7)),
+                  })),
+                }
+              : {}),
+        },
+        select: { billingYear: true, billingMonth: true },
+        distinct: ["billingYear", "billingMonth"],
+        orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
+      });
       const periods = data.month
         ? [data.month]
-        : (
-            await tx.tuitionFee.findMany({
-              where: {
-                classId: data.classId,
-                billingType: "MONTHLY",
-                status: {
-                  in: [
-                    TuitionFeeStatus.UNPAID,
-                    PARTIAL_FEE_STATUS,
-                    TuitionFeeStatus.OVERDUE,
-                  ],
-                },
-              },
-              select: { billingYear: true, billingMonth: true },
-              distinct: ["billingYear", "billingMonth"],
-              orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
-            })
-          ).map(({ billingYear, billingMonth }) =>
-            `${billingYear}-${String(billingMonth).padStart(2, "0")}`,
-          );
+        : requestedMonths
+          ? feePeriods.map(({ billingYear, billingMonth }) =>
+              `${billingYear}-${String(billingMonth).padStart(2, "0")}`,
+            )
+          : feePeriods.map(({ billingYear, billingMonth }) =>
+              `${billingYear}-${String(billingMonth).padStart(2, "0")}`,
+            );
       if (!periods.length) {
         throw new ConflictError("Lớp không có khoản học phí tháng còn nợ");
       }
@@ -1547,6 +1575,7 @@ export async function createClassNoticeBatches(
           tx,
           {
             ...data,
+            studentIds,
             month: period,
             idempotencyKey: data.month
               ? data.idempotencyKey
@@ -1756,8 +1785,10 @@ export async function listPaymentBatches(params: {
   studentId?: string;
   search?: string;
   classId?: string;
+  studentClassId?: string;
   billingYear?: number;
   billingMonth?: number;
+  billingPeriods?: Array<{ billingYear: number; billingMonth: number }>;
   status?: PaymentBatchStatus;
   page: number;
   pageSize: number;
@@ -1837,7 +1868,7 @@ export async function listPaymentBatches(params: {
   }
   const where: Prisma.PaymentBatchWhereInput = {
     ...(params.status ? { status: params.status } : {}),
-    ...(params.studentCode || params.studentId
+    ...(params.studentCode || params.studentId || params.studentClassId
       ? {
           student: {
             ...(params.studentCode
@@ -1849,21 +1880,40 @@ export async function listPaymentBatches(params: {
                 }
               : {}),
             ...(params.studentId ? { id: params.studentId } : {}),
+            ...(params.studentClassId
+              ? {
+                  enrollments: {
+                    some: {
+                      classId: params.studentClassId,
+                      status: { in: ["ACTIVE", "COMPLETED", "LEFT"] },
+                    },
+                  },
+                }
+              : {}),
           },
         }
       : {}),
-    ...(params.classId || params.billingYear || params.billingMonth
+    ...(params.classId || params.billingYear || params.billingMonth || params.billingPeriods?.length
       ? {
           allocations: {
             some: {
               tuitionFee: {
                 ...(params.classId ? { classId: params.classId } : {}),
-                ...(params.billingYear
-                  ? { billingYear: params.billingYear }
-                  : {}),
-                ...(params.billingMonth
-                  ? { billingMonth: params.billingMonth }
-                  : {}),
+                ...(params.billingPeriods?.length
+                  ? {
+                      OR: params.billingPeriods.map((period) => ({
+                        billingYear: period.billingYear,
+                        billingMonth: period.billingMonth,
+                      })),
+                    }
+                  : {
+                      ...(params.billingYear
+                        ? { billingYear: params.billingYear }
+                        : {}),
+                      ...(params.billingMonth
+                        ? { billingMonth: params.billingMonth }
+                        : {}),
+                    }),
               },
             },
           },

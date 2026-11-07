@@ -833,20 +833,21 @@ tạo học phí.
 POST /api/payment-batches/notice/class
 ```
 
-Body gồm `classId`, `bankAccountId`, `idempotencyKey`; `month` (`YYYY-MM`) là
-tùy chọn. Có `month` thì backend lấy học phí MONTHLY còn nợ của lớp/kỳ đó. Bỏ
-`month` thì backend lấy học phí MONTHLY còn nợ ở tất cả kỳ và xử lý tất cả các
-kỳ trong cùng transaction. Không đưa khoản đã thanh toán vào batch. Mỗi batch
-chỉ chứa khoản của cùng học sinh, lớp và kỳ; khi phát hành tất cả kỳ, cùng một
-học sinh có một batch riêng cho mỗi kỳ. Khoản chưa phát hành chỉ được thêm vào
-batch chuyển khoản đang chờ nếu mọi khoản đã có trong batch đều thuộc lớp và
-kỳ tương ứng; nếu không có batch cùng phạm vi, API tạo batch mới. Batch ngoài
-phạm vi được giữ nguyên. Nếu khoản mục tiêu đã nằm trong batch có khoản ngoài
-lớp/kỳ tương ứng, API trả `409 CONFLICT` và yêu cầu xử lý batch đó trước. Phân
-bổ hiện tại được giữ nguyên nếu đã bằng số dư còn nợ; nếu thấp hơn, API tăng
-phân bổ đến số dư còn lại. Khi cập nhật, API cập nhật tổng tiền, tài khoản nhận
-tiền, snapshot notice và audit log trong cùng transaction. Các phân bổ khác
-cùng kỳ được giữ nguyên.
+Body gồm `classId`, `bankAccountId`, `idempotencyKey`; có thể truyền `month`
+(`YYYY-MM`) để tương thích client cũ hoặc `months` là danh sách kỳ. Khi bỏ cả
+hai trường, backend xử lý tất cả kỳ có học phí MONTHLY còn nợ. Học viên được
+xác định theo enrollment của lớp, còn các khoản mục tiêu được lấy ở mọi lớp của
+các học viên đó. API xử lý các kỳ được chọn trong cùng transaction và không đưa
+khoản đã thanh toán vào batch. Mỗi batch chỉ chứa khoản của cùng học sinh và
+một kỳ; khi phát hành nhiều kỳ, cùng một học sinh có batch riêng cho từng kỳ.
+Khoản chưa phát hành chỉ được thêm vào batch chuyển khoản đang chờ nếu mọi khoản
+đã có trong batch đều thuộc cùng học sinh và kỳ; nếu không có batch phù hợp, API
+tạo batch mới. Batch ở kỳ ngoài tập chọn được giữ nguyên. Nếu khoản mục tiêu đã
+nằm trong batch có khoản ở kỳ ngoài tập chọn, API trả `409 CONFLICT` và yêu cầu
+xử lý batch đó trước. Phân bổ hiện tại được giữ nguyên nếu đã bằng số dư còn
+nợ; nếu thấp hơn, API tăng phân bổ đến số dư còn lại. Khi cập nhật, API cập nhật
+tổng tiền, tài khoản nhận tiền, snapshot notice và audit log trong cùng
+transaction. Các phân bổ khác cùng kỳ được giữ nguyên.
 Phản hồi trả danh sách
 batch để xuất PDF gộp qua endpoint PDF hiện có, `updatedBatchCount` và
 `replacedBatchCount` (luôn bằng 0 để tương thích với client cũ). Batch đang được
@@ -865,8 +866,9 @@ POST /api/payment-batches/notice/pdf
 ```
 
 Body gồm `batchIds` (1–5000 UUID), có thể kèm `scope` với `month` (`YYYY-MM`)
-và/hoặc `classId`. Khi gửi `scope`, API từ chối nếu bất kỳ batch nào có khoản
-ngoài kỳ/lớp được chỉ định; cần tách batch trước khi xuất. Tất cả batch phải đang `PENDING` và dùng
+hoặc `months` (danh sách kỳ), và/hoặc `classId`. Khi gửi `scope`, API từ chối
+nếu bất kỳ batch nào có khoản ngoài tập kỳ/lớp được chỉ định; cần tách batch
+trước khi xuất. Tất cả batch phải đang `PENDING` và dùng
 phương thức `BANK_TRANSFER`. PDF gộp có thể chứa nhiều học sinh và nhiều tài
 khoản nhận tiền; từng thông báo dùng QR và snapshot tài khoản riêng của batch.
 Response thành công là file PDF gộp các thông báo.
